@@ -1,123 +1,101 @@
-# Go-to-Market & Revenue Decisions (Locked for Year 1)
+# Go-to-Market & Revenue Decisions (Updated)
 
 ## Primary Goal
-Make real money in the next 12 months with a product people willingly pay for because the personas feel real and last.
+Deliver **meaningful attention and presence** at a scale that actually matters, but do it with people who feel real and survive — not with disposable volume.
+
+The old “8–15 personas” framing was too small. It would not move the needle for most serious customers.
 
 ---
 
-## 1. Beachhead Customer (Locked)
+## 1. Beachhead Customer (Unchanged)
 
-**Primary target: Marketing / Growth / Community agencies** that run niche community seeding or authentic engagement for brands.
+**Primary:** Marketing / Growth / Community agencies working for brands that care about niche credibility.
 
-### Why this segment first
-- They already sell “quality engagement / community” to brands
-- They feel the pain of bans, fake-looking activity, and short-lived accounts
-- They have budget and are used to paying for tools
-- One agency win can lead to multiple brand deployments
-- They understand the difference between cheap volume and credible presence
-
-### Secondary (later)
-- Brands doing it in-house
-- Creator platforms / tools
-- Private / paid communities
-
-### Explicitly deprioritized for Year 1
-Pure growth hackers and “I just need 10k likes cheap” buyers. They will create detection risk and destroy positioning.
+We still avoid pure “cheap likes” buyers.
 
 ---
 
-## 2. Core Offer (What We Sell First)
+## 2. Core Offer (Revised)
 
-**“Long-lived, niche-specific digital people that actually feel real.”**
+### What we are really selling
+**Meaningful, believable presence at useful scale.**
 
-Not:
-- Views
-- Guaranteed engagement numbers
-- Cheap device farms
+Customers want the *effect* of real niche people being present (attention, social proof, community liveliness). They do not want the effect of obvious bots.
 
-Yes:
-- Personas that survive weeks/months
-- Look and act like real members of a specific niche
-- Run on the customer’s own hardware (privacy + control)
-- Come with Vitality pressure so quality stays high
+### Packaging Direction (New)
 
-### First concrete package
-**“Niche Presence Pod”**
-- 8–15 coherent personas from one defined niche
-- Deployed and warmed with presence-first behavior
-- Vitality monitoring included
-- Runs on customer hardware
-- Monthly subscription based on number of active long-lived personas + niche complexity
+We sell in **Population tiers**, not tiny pods:
+
+| Tier | Active Personas | Intent |
+|------|------------------|--------|
+| Starter | 40–80 | Prove the quality difference on one niche |
+| Growth | 150–300 | Meaningful ongoing presence for a brand/community |
+| Scale | 500+ | Serious always-on niche presence |
+
+The exact numbers can flex, but the principle is clear: **we must operate at a scale that creates real visibility**, while still keeping personas coherent and distinct.
+
+### Key Product Requirement This Creates
+
+The system must support **population-level realism**:
+- Many personas from the same niche
+- Still feel like different individuals
+- Do not look coordinated or synthetic as a group
+- Maintain Vitality pressure across the population
+
+This was already in the long-term vision. It is now a Year 1 commercial requirement, not a Phase 3 luxury.
 
 ---
 
-## 3. Pricing Direction (Year 1)
+## 3. Pricing Posture (Updated)
 
-We price on **quality + longevity**, not raw volume.
+Still premium to commodity farms, but priced against **meaningful presence**, not against “per profile”.
 
 Possible axes:
-- Number of active personas
-- Niche complexity / custom DNA work
-- Length of guaranteed presence window
-- Access to Natural Language controls (later)
-- Vitality / quality tier (stricter filtering = higher price)
+- Size of the living population
+- Niche difficulty / custom DNA
+- Observed longevity + Vitality health of the population
+- Level of control (Natural Language later)
 
-**Principle:** Higher price than commodity farms is a feature, not a bug — if we deliver real coherence and survival.
-
-Exact numbers will be set after first pilot conversations. The positioning must stay premium.
+We charge for the outcome (credible, lasting niche presence) more than for the raw number of containers.
 
 ---
 
-## 4. First Paid Feature Narrative
+## 4. Messaging Shift
 
-What we say to the first agencies:
+**Old (too small):**  
+“Get 12 perfect personas.”
 
-> “Most tools give you activity that dies or looks fake.  
-> Unborn gives you a small population of people who actually belong in the niche and stay alive.  
-> You own the custom ones. They run on your hardware. And the system itself pressures them to stay high quality.”
-
-This is the wedge.
+**New:**  
+“Get a living population of people who actually belong in the niche — at a scale that creates real attention — without the usual bans and fake-looking activity.”
 
 ---
 
-## 5. What We Will Not Do in Year 1 (Commercial Discipline)
+## 5. What This Means for Engineering
 
-- We will not compete on price per action
-- We will not sell pure volume packages
-- We will not support every platform before one surface works extremely well
-- We will not let low-quality use cases define the product
-- We will not claim “undetectable” — we claim “coherent + long-lived + high perceived authenticity”
+Year 1 technical bar just rose:
 
----
-
-## 6. Success Metrics for Revenue
-
-Near-term (next 6–9 months):
-- 3–5 paying agency pilot customers
-- Clear evidence that their personas survive longer and feel more real than alternatives
-- Willingness to renew / expand the number of personas
-
-If we cannot get agencies to pay for quality + longevity, we have a deeper product-market problem and must revisit.
+- Must handle higher concurrent personas while protecting distinctiveness
+- Population-level controls become important earlier
+- Vitality must work across groups, not just individuals
+- Density + realism trade-off becomes a real commercial constraint (we still refuse to sacrifice realism, but we must push density hard)
 
 ---
 
-## 7. Immediate Commercial Next Steps
-
-1. Write a tight one-pager / pitch for agencies around the “Niche Presence Pod”
-2. Define what a successful 30–60 day pilot looks like (survival + perception signals)
-3. Get 3–5 real conversations with agency operators as soon as the system can run real (non-simulated) presence
-4. Only then finalize exact pricing
-
----
-
-## Decision Summary
+## 6. Decision Summary (Revised)
 
 | Question | Decision |
 |----------|----------|
-| Who do we sell to first? | Marketing / Growth / Community agencies |
-| What do we sell? | Long-lived, niche-coherent digital people (Presence Pods) |
-| How do we price? | Quality + longevity, premium to commodity farms |
-| What do we refuse? | Pure volume / cheap engagement buyers |
-| Main risk we accept | Lower volume of customers, higher quality of revenue |
+| Who first? | Agencies that sell niche credibility to brands |
+| What scale? | Populations large enough to create meaningful attention (tens to hundreds+, not 10–15) |
+| What makes us different? | Coherence + longevity + population realism + Vitality pressure |
+| What we refuse? | Pure low-quality volume game |
+| Engineering implication | Population-level realism is now a Year 1 requirement |
 
-This keeps the product aligned with the technical moat we are actually building.
+---
+
+## Bottom Line
+
+We are not selling a handful of perfect dolls.  
+We are selling **living niche populations that can actually move the needle on attention**, while still feeling real and lasting.
+
+That is a harder product. It is also the only version worth building if the goal is meaningful impact + revenue.
