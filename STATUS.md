@@ -5,43 +5,35 @@ Last updated: 2026-08-20
 ## Current Phase
 **Phase 1 – Sellable MVP Foundation** (in progress)
 
-## Tracking System
+## Positioning (Locked)
+We are a farming system. The moat is that every body has a Persona (soul).  
+We operate at meaningful population scale. We optimize for sustainable, believable attention.
 
-1. **GitHub Issues** — All work items, bugs, epics, hard problems
-2. **Architecture Decision Records** (`docs/adr/`) — Why technical decisions were made
-3. **STATUS.md** (this file) — High-level view of what is actually built
-4. **FEATURES.md** — Feature-level checklist by phase
+See `docs/farming-with-souls.md` and `docs/go-to-market.md`.
 
 ---
 
 ## What Is Built
 
-### Documentation & Strategy
-- [x] Full strategy, philosophy, ownership, scale architecture, tech stack, ADRs
+### Documentation (Cleaned)
+- [x] Philosophy, positioning, GTM, scale architecture, vitality, ownership, stress test
+- [x] Docs index (`docs/README.md`)
+- [x] ADRs + tracking system
 
-### Code & Implementation
-- [x] Repository structure
+### Code
+- [x] Repo structure
 - [x] Persona Schema v0
-- [x] FEATURES.md + STATUS.md tracking
 - [x] Docker Compose foundation (Postgres + Redis + Orchestrator)
 - [x] Orchestrator (Go)
-  - Instance lifecycle with **simulated body mode**
-  - Persona Store (in-memory for now)
+  - Persona Store (in-memory)
   - DeviceProfile (basic identity)
-  - HTTP API:
-    - `GET /health`
-    - `GET/POST /v1/personas`
-    - `GET /v1/personas/{id}`
-    - `GET/POST /v1/instances`
-    - `GET /v1/instances/{id}`
-    - `POST /v1/instances/{id}/stop`
-    - `GET /v1/device-profiles`
-- [ ] Real Redroid body management
+  - Simulated body mode
+  - HTTP API for personas, instances, device profiles
 - [ ] PostgreSQL-backed Persona Store
-- [ ] Rich Identity generation
+- [ ] Real Redroid lifecycle
 - [ ] Behavior Engine
-- [ ] Installer
-- [ ] CLI & Dashboard
+- [ ] Vitality module
+- [ ] Installer, CLI, Dashboard
 
 ---
 
@@ -51,26 +43,20 @@ Last updated: 2026-08-20
 cd docker
 docker compose up --build
 
-# Create a Persona
 curl -X POST http://localhost:8080/v1/personas \
   -H "Content-Type: application/json" \
-  -d '{"display_name":"Ava","location":"Berlin","timezone":"Europe/Berlin","age_min":26,"age_max":28,"engagement":"thoughtful_commenter"}'
+  -d '{"display_name":"Ava","location":"Berlin","timezone":"Europe/Berlin","age_min":26,"age_max":28}'
 
-# Create a simulated instance for that persona
 curl -X POST http://localhost:8080/v1/instances \
   -H "Content-Type: application/json" \
-  -d '{"persona_id":"<id-from-previous-call>","simulated":true}'
-
-# List everything
-curl http://localhost:8080/v1/personas
-curl http://localhost:8080/v1/instances
-curl http://localhost:8080/v1/device-profiles
+  -d '{"persona_id":"<id>","simulated":true}'
 ```
 
 ---
 
-## Next Actions
-1. PostgreSQL-backed Persona Store
-2. Real Redroid container lifecycle (behind the same interface)
-3. Simple rule-based Behavior Engine
-4. Basic installer script
+## Next Technical Priorities
+1. PostgreSQL Persona Store
+2. Real Redroid body lifecycle
+3. Simple Behavior Engine
+4. Vitality score skeleton
+5. Installer

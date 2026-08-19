@@ -1,15 +1,18 @@
 # Unborn
 
-**Platform for deploying authentic digital people of specific niches and styles.**
+**Farming with souls.**
 
-Unborn turns customer-owned Ubuntu hardware into a self-hosted farm of high-fidelity, long-lived digital personas.  
-These are not bots or generic device instances — they are coherent, believable people with demographics, taste, linguistic style, circadian rhythms, engagement philosophy, and memory.
+Unborn is a self-hosted platform that runs living populations of digital people.  
+Every instance is driven by a coherent Persona — with taste, memory, circadian rhythm, engagement style, and real consequences (Vitality).
+
+We still do the job of a farm: generate attention and presence at useful scale.  
+We just refuse to do it with empty shells.
 
 ---
 
 ## Current Status
 
-See **[STATUS.md](STATUS.md)** for a live view of what is built and what is next.
+See **[STATUS.md](STATUS.md)** and **[FEATURES.md](FEATURES.md)**.
 
 We are in **Phase 1 – Sellable MVP Foundation**.
 
@@ -17,24 +20,24 @@ We are in **Phase 1 – Sellable MVP Foundation**.
 
 ## Core Idea
 
-> You are not selling views, subscriptions, or device farms.  
-> You are selling **specific types of people**.
+> Other farms rent you activity.  
+> Unborn runs a living population of people who generate activity.
 
-The technical stack (Redroid, sensors, identity, network isolation) is infrastructure.  
-**The moat is the quality, specificity, and believability of the personas.**
+Later the same Personas can be used for conversation, tool use (MCP), research, and other surfaces.  
+The farm is the first body. The Persona is the lasting asset.
 
 ---
 
 ## Key Documents
 
-- [Philosophy](docs/philosophy.md) — Full-power modular engine, segregated responsibility
-- [Product Strategy](docs/product-strategy.md) — 1-year moat and revenue focus
-- [Ownership & Future Agents](docs/ownership-and-future-agents.md) — Hybrid ownership + conversational/MCP future
-- [Scale Architecture](docs/scale-architecture.md) — How the system works at scale
-- [Tech Stack](docs/tech-stack.md)
-- [Pre-build Decisions](docs/pre-build-decisions.md)
-- [Long-term Vision](docs/long-term-vision.md)
-- [Architecture Decision Records](docs/adr/)
+Start with the docs index: **[docs/README.md](docs/README.md)**
+
+Most important:
+- [Farming with Souls](docs/farming-with-souls.md) — positioning
+- [Go-to-Market](docs/go-to-market.md) — how we make money
+- [Philosophy](docs/philosophy.md) — full-power modular design
+- [Scale Architecture](docs/scale-architecture.md) — how it works at scale
+- [Vitality & Consequences](docs/vitality-and-consequences.md) — every action has weight
 
 ---
 
@@ -42,23 +45,22 @@ The technical stack (Redroid, sensors, identity, network isolation) is infrastru
 
 ```
 unborn/
-├── STATUS.md                # What is actually built
-├── docs/                    # Strategy, architecture, ADRs
-├── personas/                # Schema, DNA, templates
-├── management/              # Orchestrator, API, Persona Intelligence (Go + services)
-├── execution/               # Redroid bodies, injection, isolation
-├── docker/                  # Compose & Dockerfiles
-├── installer/               # One-command installer
-└── experiments/             # Research & prototypes
+├── STATUS.md / FEATURES.md     # What exists vs planned
+├── docs/                       # Strategy, architecture, ADRs
+├── personas/                   # Schema & DNA
+├── management/                 # Orchestrator (Go) + control plane
+├── execution/                  # Redroid bodies
+├── docker/                     # Compose foundation
+└── installer/                  # One-command install (planned)
 ```
 
 ---
 
 ## Tracking
 
-- **Issues** → what we are working on
+- **Issues** → current work
 - **ADRs** → why technical decisions were made
-- **STATUS.md** → what already exists
+- **STATUS.md + FEATURES.md** → what is actually built
 
 ---
 

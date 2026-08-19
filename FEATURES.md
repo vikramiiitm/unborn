@@ -1,88 +1,58 @@
 # Unborn – Features
 
-Living list of features, their status, and phase.
-
-Legend:
-- [ ] Not started
-- [~] In progress
-- [x] Done (basic version)
-- [+] Done and iterated
+Legend: [ ] Not started · [~] In progress · [x] Done (basic) · [+] Iterated
 
 ---
 
 ## Phase 1 – Sellable MVP
 
-### Core Infrastructure
-- [x] Repository structure & tracking system
+### Core
+- [x] Repo structure + tracking (STATUS, FEATURES, ADRs, docs index)
 - [x] Persona Schema v0
-- [x] Architecture Decision Records process
-- [x] FEATURES.md tracking
 - [x] Docker Compose foundation
-- [ ] One-command installer
-- [ ] License service (signed keys, max instances)
-- [ ] Resource limits & health checks (basic exists)
-
-### Orchestrator
-- [x] Orchestrator skeleton (Go)
-- [x] Start / stop / list instances (simulated mode)
-- [x] Bind Persona ↔ body (basic)
-- [x] Max instances guard
-- [ ] Real Redroid container lifecycle
-- [ ] Health monitoring & auto-restart of bodies
-
-### Personas
-- [x] In-memory Persona Store
-- [x] Create / list / get Persona API
+- [x] Orchestrator skeleton (Go) + simulated bodies
+- [x] In-memory Persona Store + basic DeviceProfile
+- [x] Minimal HTTP API
 - [ ] PostgreSQL-backed Persona Store
-- [ ] Persona export (customer ownership)
+- [ ] Real Redroid lifecycle
+- [ ] Basic Behavior Engine
+- [ ] Vitality score (skeleton)
+- [ ] One-command installer
+- [ ] License service
+- [ ] Minimal CLI / Dashboard
 
 ### Identity & Network
-- [x] Basic DeviceProfile structure
-- [x] Default device profiles
+- [x] Basic DeviceProfile
 - [ ] Rich identity generation
-- [ ] Per-instance network isolation
-- [ ] Forced proxy routing
-- [ ] Identity injection into Redroid
-
-### Behavior (Basic)
-- [ ] Simple statistical / rule-based behavior engine
-- [ ] Circadian-aware activity windows (basic)
-
-### Interfaces
-- [x] Minimal HTTP API (health, personas, instances, device-profiles)
-- [ ] Minimal CLI
-- [ ] Minimal Dashboard
+- [ ] Network isolation + proxy forcing
+- [ ] Identity injection
 
 ---
 
 ## Phase 2 – Realism Leap
-
-- [ ] Full Persona object lifecycle + PostgreSQL
-- [ ] Hierarchical memory (short + long term)
-- [ ] High-quality correlated sensor + touch trajectories
+- [ ] Hierarchical memory + summarization
+- [ ] High-quality sensor + touch trajectories
 - [ ] Frida injection path
-- [ ] Vision-based UI understanding (basic)
-- [ ] Detection Radar (basic signals)
-- [ ] Natural Language Persona DNA generator (first version)
+- [ ] Basic Detection Radar
+- [ ] Natural Language DNA generator (first version)
+- [ ] Population-level distinctiveness controls
 
 ---
 
-## Phase 3 – Moat Features
-
+## Phase 3 – Moat
 - [ ] Long-term persona evolution
-- [ ] Population-level realism controls
-- [ ] Self-improving behavior signals (opt-in)
-- [ ] Natural Language Persona Studio
-- [ ] Conversational interface to Personas
-- [ ] MCP tool-use capability
-- [ ] Advanced Detection Radar + adaptation
+- [ ] Strong population realism
+- [ ] Conversational interface
+- [ ] MCP tool use
+- [ ] Advanced Vitality + adaptation
+- [ ] Self-improving signals (opt-in)
 
 ---
 
-## Cross-Cutting
-
-- [x] Hybrid ownership model
+## Cross-Cutting (Locked)
+- [x] Farming-with-souls positioning
+- [x] Hybrid ownership
 - [x] Full-power modular philosophy
-- [x] Scale architecture defined
+- [x] Meaningful population scale (not tiny pods)
+- [x] Vitality / consequence system design
 - [ ] Human perception testing protocol
-- [ ] Customer export of Personas
