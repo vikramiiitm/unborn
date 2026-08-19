@@ -1,0 +1,95 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://unborn.dev/schemas/persona/v0",
+  "title": "Unborn Persona Schema v0",
+  "type": "object",
+  "required": ["id", "version", "created_at", "demographics", "engagement", "circadian"],
+  "properties": {
+    "id": { "type": "string", "format": "uuid" },
+    "version": { "type": "string", "const": "0.1.0" },
+    "created_at": { "type": "string", "format": "date-time" },
+    "updated_at": { "type": "string", "format": "date-time" },
+    "display_name": { "type": "string" },
+    "demographics": {
+      "type": "object",
+      "required": ["age_range", "location"],
+      "properties": {
+        "age_range": {
+          "type": "array",
+          "items": { "type": "integer" },
+          "minItems": 2,
+          "maxItems": 2
+        },
+        "gender_presentation": { "type": "string" },
+        "location": { "type": "string" },
+        "life_context": { "type": "string" }
+      }
+    },
+    "interest_graph": {
+      "type": "object",
+      "properties": {
+        "primary": { "type": "array", "items": { "type": "string" } },
+        "secondary": { "type": "array", "items": { "type": "string" } },
+        "aesthetic_style": { "type": "string" }
+      }
+    },
+    "language": {
+      "type": "object",
+      "properties": {
+        "primary_language": { "type": "string" },
+        "dialect_region": { "type": "string" },
+        "emoji_habits": { "type": "string" },
+        "vocabulary_register": { "type": "string" },
+        "comment_philosophy": { "type": "string" }
+      }
+    },
+    "circadian": {
+      "type": "object",
+      "required": ["timezone"],
+      "properties": {
+        "typical_wake": { "type": "string" },
+        "peak_activity": { "type": "array", "items": { "type": "string" } },
+        "timezone": { "type": "string" }
+      }
+    },
+    "physical_context_preferences": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "engagement": {
+      "type": "object",
+      "required": ["type"],
+      "properties": {
+        "type": {
+          "type": "string",
+          "enum": ["lurker", "thoughtful_commenter", "enthusiastic_sharer", "quiet_reader", "selective_engager"]
+        },
+        "risk_tolerance": { "type": "string", "enum": ["low", "medium", "high"] },
+        "volume_preference": { "type": "string" }
+      }
+    },
+    "memory": {
+      "type": "object",
+      "properties": {
+        "short_term": { "type": "array" },
+        "long_term_summaries": { "type": "array" },
+        "last_updated": { "type": "string", "format": "date-time" }
+      }
+    },
+    "visual": {
+      "type": "object",
+      "properties": {
+        "profile_aesthetic": { "type": "string" },
+        "photo_style_hints": { "type": "string" }
+      }
+    },
+    "device_profile_id": { "type": "string" },
+    "status": {
+      "type": "string",
+      "enum": ["draft", "warming", "active", "paused", "archived"]
+    },
+    "customer_owned": { "type": "boolean", "default": true },
+    "template_id": { "type": ["string", "null"] },
+    "metadata": { "type": "object" }
+  }
+}
