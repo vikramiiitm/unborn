@@ -1,0 +1,59 @@
+version: "3.9"
+
+# Unborn – Phase 1 foundation
+# Management Plane + placeholder for Execution Plane
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: unborn-postgres
+    environment:
+      POSTGRES_USER: unborn
+      POSTGRES_PASSWORD: unborn
+      POSTGRES_DB: unborn
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U unborn"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    container_name: unborn-redis
+    ports:
+      - "6379:6379"
+    restart: unless-stopped
+
+  orchestrator:
+    build:
+      context: ../management/orchestrator
+      dockerfile: Dockerfile
+    container_name: unborn-orchestrator
+    environment:
+      DATABASE_URL: postgres://unborn:unborn@postgres:5432/unborn?sslmode=disable
+      REDIS_URL: redis://redis:6379
+      UNBORN_ENV: development
+    ports:
+      - "8080:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    restart: unless-stopped
+    # volumes:
+    #   - /var/run/docker.sock:/var/run/docker.sock  # later for managing Redroid containers
+
+  # Placeholder for future Redroid instances – managed dynamically by Orchestrator
+  # redroid-example:
+  #   image: redroid/redroid:latest
+  #   privileged: true
+  #   ...
+
+volumes:
+  postgres_data:
