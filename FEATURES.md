@@ -16,20 +16,30 @@ Legend:
 - [x] Repository structure & tracking system
 - [x] Persona Schema v0
 - [x] Architecture Decision Records process
-- [~] Docker Compose foundation
+- [x] FEATURES.md tracking
+- [x] Docker Compose foundation
 - [ ] One-command installer
 - [ ] License service (signed keys, max instances)
-- [ ] Resource limits & health checks
+- [ ] Resource limits & health checks (basic exists)
 
 ### Orchestrator
-- [~] Orchestrator skeleton (Go)
-- [ ] Start / stop / list instances
-- [ ] Bind / unbind Persona ↔ body
-- [ ] Basic admission control
-- [ ] Health monitoring & auto-restart
+- [x] Orchestrator skeleton (Go)
+- [x] Start / stop / list instances (simulated mode)
+- [x] Bind Persona ↔ body (basic)
+- [x] Max instances guard
+- [ ] Real Redroid container lifecycle
+- [ ] Health monitoring & auto-restart of bodies
+
+### Personas
+- [x] In-memory Persona Store
+- [x] Create / list / get Persona API
+- [ ] PostgreSQL-backed Persona Store
+- [ ] Persona export (customer ownership)
 
 ### Identity & Network
-- [ ] Basic device identity generation
+- [x] Basic DeviceProfile structure
+- [x] Default device profiles
+- [ ] Rich identity generation
 - [ ] Per-instance network isolation
 - [ ] Forced proxy routing
 - [ ] Identity injection into Redroid
@@ -39,15 +49,15 @@ Legend:
 - [ ] Circadian-aware activity windows (basic)
 
 ### Interfaces
+- [x] Minimal HTTP API (health, personas, instances, device-profiles)
 - [ ] Minimal CLI
-- [ ] Minimal API
-- [ ] Minimal Dashboard (read-only first)
+- [ ] Minimal Dashboard
 
 ---
 
 ## Phase 2 – Realism Leap
 
-- [ ] Full Persona object lifecycle
+- [ ] Full Persona object lifecycle + PostgreSQL
 - [ ] Hierarchical memory (short + long term)
 - [ ] High-quality correlated sensor + touch trajectories
 - [ ] Frida injection path
