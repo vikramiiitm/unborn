@@ -220,6 +220,20 @@ func (o *Orchestrator) InjectIdentity(ctx context.Context, bodyID string) error 
 	return identity.InjectViaADB(ctx, b.ADBPort, prof)
 }
 
+func (o *Orchestrator) Screenshot(ctx context.Context, bodyID string) ([]byte, error) {
+	b, ok := o.bodies.Get(bodyID)
+	if !ok {
+		return nil, ErrInstanceNotFound
+	}
+	if b.Simulated {
+		return nil, ErrSimulatedNoScreen
+	}
+	if b.ADBPort <= 0 {
+		return nil, ErrInstanceNotFound
+	}
+	return body.ScreenshotPNG(ctx, b.ADBPort)
+}
+
 func (o *Orchestrator) ListDeviceProfiles() []*identity.DeviceProfile {
 	out := make([]*identity.DeviceProfile, 0, len(o.profiles))
 	for _, p := range o.profiles {
