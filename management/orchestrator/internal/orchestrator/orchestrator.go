@@ -56,6 +56,7 @@ type Orchestrator struct {
 	cfg       *config.Config
 	personas  PersonaRepository
 	bodies    body.Manager
+	redroid   *body.RedroidManager // typed access for wipe/adb when available
 	behavior  *behavior.Engine
 	vitality  vitality.Service
 	playbooks *playbook.Store
@@ -91,10 +92,12 @@ func New(cfg *config.Config) *Orchestrator {
 		max = lim
 	}
 
+	rm := body.NewRedroidManager(max, body.DefaultRedroidConfig())
 	o := &Orchestrator{
 		cfg:       cfg,
 		personas:  repo,
-		bodies:    body.NewRedroidManager(max, body.DefaultRedroidConfig()),
+		bodies:    rm,
+		redroid:   rm,
 		behavior:  behavior.NewEngine(),
 		vitality:  vit,
 		playbooks: playbook.NewStore(),
@@ -105,7 +108,7 @@ func New(cfg *config.Config) *Orchestrator {
 	for _, p := range identity.DefaultProfiles() {
 		o.profiles[p.ID] = p
 	}
-	log.Printf("License: tier=%s max_instances=%d valid=%v", lic.Status().Tier, lic.MaxInstances(), lic.Status().Valid)
+	log.Printf("Redroid: image=%s data_root configured, license max=%d", body.DefaultRedroidConfig().Image, max)
 	return o
 }
 
@@ -133,17 +136,25 @@ func (o *Orchestrator) CreateInstance(ctx context.Context, personaID string, sim
 		return nil, ErrPersonaNotFound
 	}
 	var profileID string
-	for id := range o.profiles {
+	var profile *identity.DeviceProfile
+	for id, p := range o.profiles {
 		profileID = id
+		profile = p
 		break
 	}
 	opts := body.StartOpts{
 		PersonaID:       personaID,
 		DeviceProfileID: profileID,
 		Simulated:       simulated,
+		ExtraBootProps:  map[string]string{},
 	}
 	if px, ok := o.proxies.Get(personaID); ok {
 		opts.Network = body.NetworkOpts{ProxyHost: px.Host, ProxyPort: px.Port, ProxyType: px.Type}
+	}
+	// Seed future identity injection from device profile
+	if profile != nil {
+		opts.ExtraBootProps["unborn.device_model"] = profile.Model
+		opts.ExtraBootProps["unborn.device_manufacturer"] = profile.Manufacturer
 	}
 	b, err := o.bodies.Start(ctx, opts)
 	if err != nil {
@@ -155,6 +166,13 @@ func (o *Orchestrator) CreateInstance(ctx context.Context, personaID string, sim
 
 func (o *Orchestrator) StopInstance(ctx context.Context, id string) error {
 	return o.bodies.Stop(ctx, id)
+}
+
+func (o *Orchestrator) WipeInstanceData(id string) error {
+	if o.redroid == nil {
+		return ErrInstanceNotFound
+	}
+	return o.redroid.WipeData(id)
 }
 
 func (o *Orchestrator) ListDeviceProfiles() []*identity.DeviceProfile {
@@ -171,7 +189,6 @@ func (o *Orchestrator) NextAction(ctx context.Context, personaID string) (behavi
 		return behavior.Action{}, ErrPersonaNotFound
 	}
 	act := o.behavior.NextAction(p, time.Now().UTC())
-	// Playbook influence (Phase 1: annotate reason)
 	for _, a := range o.playbooks.ListAssignments(personaID) {
 		if !a.Active {
 			continue
@@ -199,12 +216,22 @@ func (o *Orchestrator) CheckBodyHealth(ctx context.Context, bodyID string) (bool
 	if b.Simulated {
 		return true, "simulated"
 	}
+	ref := b.ContainerName
+	if ref == "" {
+		ref = b.ContainerID
+	}
+	if ref != "" && !body.ContainerRunning(ctx, ref) {
+		return false, "container not running"
+	}
 	if b.ADBPort <= 0 {
 		return false, "no adb port"
 	}
-	okADB := body.CheckADB(ctx, b.ADBPort)
-	if okADB {
+	if body.CheckADB(ctx, b.ADBPort) {
 		return true, "adb device"
 	}
-	return false, "adb unreachable (is adb installed? container up?)"
+	// Container up but adb not ready yet is common during boot
+	if ref != "" && body.ContainerRunning(ctx, ref) {
+		return false, "container up, adb not ready"
+	}
+	return false, "adb unreachable"
 }

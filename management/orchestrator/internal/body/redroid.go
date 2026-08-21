@@ -3,7 +3,9 @@ package body
 import (
 	"context"
 	"fmt"
+	"os"
 	"os/exec"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -20,17 +22,39 @@ type RedroidConfig struct {
 	DPI              int
 	DefaultProxyHost string
 	DefaultProxyPort int
+	MemoryLimit      string // e.g. 3072m
+	CPULimit         string // e.g. 2.0
 }
 
 func DefaultRedroidConfig() RedroidConfig {
-	return RedroidConfig{
+	cfg := RedroidConfig{
 		Image:       "redroid/redroid:14.0.0_64only-latest",
 		DataRoot:    "/var/lib/unborn/redroid-data",
 		BaseADBPort: 5555,
 		Width:       1080,
 		Height:      1920,
 		DPI:         480,
+		MemoryLimit: "3072m",
+		CPULimit:    "2.0",
 	}
+	if v := os.Getenv("REDROID_IMAGE"); v != "" {
+		cfg.Image = v
+	}
+	if v := os.Getenv("REDROID_DATA_ROOT"); v != "" {
+		cfg.DataRoot = v
+	}
+	if v := os.Getenv("REDROID_MEMORY"); v != "" {
+		cfg.MemoryLimit = v
+	}
+	if v := os.Getenv("REDROID_CPUS"); v != "" {
+		cfg.CPULimit = v
+	}
+	if v := os.Getenv("REDROID_BASE_ADB_PORT"); v != "" {
+		if n, err := strconv.Atoi(v); err == nil {
+			cfg.BaseADBPort = n
+		}
+	}
+	return cfg
 }
 
 type RedroidManager struct {
@@ -92,19 +116,28 @@ func (m *RedroidManager) Start(ctx context.Context, opts StartOpts) (*Body, erro
 	name := "unborn-" + bodyID[:8]
 	dataDir := fmt.Sprintf("%s/%s", m.cfg.DataRoot, bodyID)
 
+	_ = os.MkdirAll(dataDir, 0o755)
+
 	args := []string{
 		"run", "-d", "--privileged",
 		"--name", name,
 		"-v", dataDir + ":/data",
 		"-p", fmt.Sprintf("%d:5555", port),
 		"--restart", "unless-stopped",
+	}
+	if m.cfg.MemoryLimit != "" {
+		args = append(args, "--memory", m.cfg.MemoryLimit)
+	}
+	if m.cfg.CPULimit != "" {
+		args = append(args, "--cpus", m.cfg.CPULimit)
+	}
+	args = append(args,
 		m.cfg.Image,
 		fmt.Sprintf("androidboot.redroid_width=%d", m.cfg.Width),
 		fmt.Sprintf("androidboot.redroid_height=%d", m.cfg.Height),
 		fmt.Sprintf("androidboot.redroid_dpi=%d", m.cfg.DPI),
-	}
+	)
 
-	// Per-start proxy: persona assignment wins over default config
 	proxyHost := opts.Network.ProxyHost
 	proxyPort := opts.Network.ProxyPort
 	if proxyHost == "" {
@@ -117,6 +150,13 @@ func (m *RedroidManager) Start(ctx context.Context, opts StartOpts) (*Body, erro
 			"androidboot.redroid_net_proxy_host="+proxyHost,
 			fmt.Sprintf("androidboot.redroid_net_proxy_port=%d", proxyPort),
 		)
+	}
+
+	// Placeholder for future identity props from DeviceProfile
+	for k, v := range opts.ExtraBootProps {
+		if k != "" && v != "" {
+			args = append(args, fmt.Sprintf("%s=%s", k, v))
+		}
 	}
 
 	cmd := exec.CommandContext(ctx, "docker", args...)
@@ -137,7 +177,9 @@ func (m *RedroidManager) Start(ctx context.Context, opts StartOpts) (*Body, erro
 		State:           StateRunning,
 		Simulated:       false,
 		ContainerID:     containerID,
+		ContainerName:   name,
 		ADBPort:         port,
+		DataDir:         dataDir,
 		CreatedAt:       now,
 		UpdatedAt:       now,
 	}
@@ -156,7 +198,11 @@ func (m *RedroidManager) Stop(ctx context.Context, bodyID string) error {
 	if b.Simulated || b.ContainerID == "" {
 		return m.sim.Stop(ctx, bodyID)
 	}
-	cmd := exec.CommandContext(ctx, "docker", "rm", "-f", b.ContainerID)
+	ref := b.ContainerID
+	if b.ContainerName != "" {
+		ref = b.ContainerName
+	}
+	cmd := exec.CommandContext(ctx, "docker", "rm", "-f", ref)
 	if out, err := cmd.CombinedOutput(); err != nil {
 		return fmt.Errorf("docker rm: %w (%s)", err, strings.TrimSpace(string(out)))
 	}
@@ -171,6 +217,20 @@ func (m *RedroidManager) Stop(ctx context.Context, bodyID string) error {
 		}
 	}
 	return nil
+}
+
+// WipeData removes the on-disk /data directory for a stopped body (optional).
+func (m *RedroidManager) WipeData(bodyID string) error {
+	m.mu.Lock()
+	b, ok := m.bodies[bodyID]
+	m.mu.Unlock()
+	if !ok || b.DataDir == "" {
+		return fmt.Errorf("no data dir")
+	}
+	if b.State == StateRunning {
+		return fmt.Errorf("stop body before wipe")
+	}
+	return os.RemoveAll(b.DataDir)
 }
 
 func (m *RedroidManager) Get(bodyID string) (*Body, bool) {
@@ -207,21 +267,27 @@ func (m *RedroidManager) ADBPort(bodyID string) (int, bool) {
 	return 0, false
 }
 
-// CheckADB pings adb connect to host:port (best-effort).
 func CheckADB(ctx context.Context, hostPort int) bool {
 	if hostPort <= 0 {
 		return false
 	}
 	addr := fmt.Sprintf("127.0.0.1:%d", hostPort)
-	cmd := exec.CommandContext(ctx, "adb", "connect", addr)
-	if err := cmd.Run(); err != nil {
-		// adb may be missing — try docker exec fallback is out of scope; mark unknown
-		return false
-	}
-	cmd = exec.CommandContext(ctx, "adb", "-s", addr, "get-state")
-	out, err := cmd.CombinedOutput()
+	_ = exec.CommandContext(ctx, "adb", "connect", addr).Run()
+	out, err := exec.CommandContext(ctx, "adb", "-s", addr, "get-state").CombinedOutput()
 	if err != nil {
 		return false
 	}
 	return strings.Contains(string(out), "device")
+}
+
+// ContainerRunning reports whether docker sees the container.
+func ContainerRunning(ctx context.Context, nameOrID string) bool {
+	if nameOrID == "" {
+		return false
+	}
+	out, err := exec.CommandContext(ctx, "docker", "inspect", "-f", "{{.State.Running}}", nameOrID).CombinedOutput()
+	if err != nil {
+		return false
+	}
+	return strings.TrimSpace(string(out)) == "true"
 }

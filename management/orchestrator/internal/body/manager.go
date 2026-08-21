@@ -20,19 +20,18 @@ const (
 	StateFailed   State = "failed"
 )
 
-// NetworkOpts optional proxy for Redroid boot.
 type NetworkOpts struct {
 	ProxyHost string
 	ProxyPort int
-	ProxyType string // static, none
+	ProxyType string
 }
 
-// StartOpts carries persona binding + network when creating a body.
 type StartOpts struct {
 	PersonaID       string
 	DeviceProfileID string
 	Simulated       bool
 	Network         NetworkOpts
+	ExtraBootProps  map[string]string // future identity / build props
 }
 
 type Body struct {
@@ -42,7 +41,9 @@ type Body struct {
 	State           State     `json:"state"`
 	Simulated       bool      `json:"simulated"`
 	ContainerID     string    `json:"container_id,omitempty"`
+	ContainerName   string    `json:"container_name,omitempty"`
 	ADBPort         int       `json:"adb_port,omitempty"`
+	DataDir         string    `json:"data_dir,omitempty"`
 	CreatedAt       time.Time `json:"created_at"`
 	UpdatedAt       time.Time `json:"updated_at"`
 	ErrorMessage    string    `json:"error_message,omitempty"`

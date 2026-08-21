@@ -2,26 +2,19 @@
 
 Last updated: 2026-08-22
 
-## Phase 1 – Sellable MVP Foundation (strong progress)
+## Focus: Redroid (Execution Plane)
 
-### Built
-- Persona + Vitality on Postgres
-- Redroid manager with **per-persona proxy on docker run**
-- Behavior loop with **playbook influence** + ADB health nudges
-- Playbooks API + proxy API
-- **License service** (HMAC offline keys, dev default, activate API)
-- Minimal dashboard + installer
+### Redroid now
+- Real `docker run` with memory/CPU limits, data dir, ADB port, proxy boot props
+- Env: `REDROID_IMAGE`, `REDROID_DATA_ROOT`, `REDROID_MEMORY`, `REDROID_CPUS`, `REDROID_BASE_ADB_PORT`
+- Health: container inspect + ADB
+- `POST /v1/instances/{id}/wipe` after stop
+- Docs: `docs/redroid.md`
 
-### API highlights
-```
-GET  /v1/license
-POST /v1/license/activate  { "key": "..." }
-GET  /v1/instances/{id}/health
-PUT  /v1/personas/{id}/proxy  → applied on next real body start
-```
+### Still on Redroid track
+1. Real device identity injection (build.prop / settings via adb)
+2. Network namespace isolation
+3. Frida / input injection path
+4. Snapshot API
 
-### Next (Phase 1 polish)
-- Richer playbook execution (schedules, intensity curves)
-- Identity injection into Redroid
-- CLI package
-- Harden license secret management for production
+Personas stay as-is until Redroid path is solid.

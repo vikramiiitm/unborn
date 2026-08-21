@@ -33,6 +33,7 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("POST /v1/instances", s.handleCreateInstance)
 	s.mux.HandleFunc("GET /v1/instances/{id}", s.handleGetInstance)
 	s.mux.HandleFunc("POST /v1/instances/{id}/stop", s.handleStopInstance)
+	s.mux.HandleFunc("POST /v1/instances/{id}/wipe", s.handleWipeInstance)
 	s.mux.HandleFunc("GET /v1/instances/{id}/health", s.handleInstanceHealth)
 	s.mux.HandleFunc("GET /v1/personas", s.handleListPersonas)
 	s.mux.HandleFunc("POST /v1/personas", s.handleCreatePersona)
@@ -119,6 +120,14 @@ func (s *Server) handleStopInstance(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]string{"status": "stopped"})
+}
+
+func (s *Server) handleWipeInstance(w http.ResponseWriter, r *http.Request) {
+	if err := s.orch.WipeInstanceData(r.PathValue("id")); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]string{"status": "wiped"})
 }
 
 func (s *Server) handleInstanceHealth(w http.ResponseWriter, r *http.Request) {
