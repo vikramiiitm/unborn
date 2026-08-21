@@ -9,7 +9,6 @@ import (
 	"github.com/google/uuid"
 )
 
-// State of a running body (Redroid instance or simulated).
 type State string
 
 const (
@@ -21,7 +20,21 @@ const (
 	StateFailed   State = "failed"
 )
 
-// Body is one execution unit bound to a Persona.
+// NetworkOpts optional proxy for Redroid boot.
+type NetworkOpts struct {
+	ProxyHost string
+	ProxyPort int
+	ProxyType string // static, none
+}
+
+// StartOpts carries persona binding + network when creating a body.
+type StartOpts struct {
+	PersonaID       string
+	DeviceProfileID string
+	Simulated       bool
+	Network         NetworkOpts
+}
+
 type Body struct {
 	ID              string    `json:"id"`
 	PersonaID       string    `json:"persona_id"`
@@ -29,55 +42,52 @@ type Body struct {
 	State           State     `json:"state"`
 	Simulated       bool      `json:"simulated"`
 	ContainerID     string    `json:"container_id,omitempty"`
+	ADBPort         int       `json:"adb_port,omitempty"`
 	CreatedAt       time.Time `json:"created_at"`
 	UpdatedAt       time.Time `json:"updated_at"`
 	ErrorMessage    string    `json:"error_message,omitempty"`
+	Healthy         *bool     `json:"healthy,omitempty"`
 }
 
-// Manager starts and stops bodies. Simulated by default; real Redroid later.
 type Manager interface {
-	Start(ctx context.Context, personaID, deviceProfileID string, simulated bool) (*Body, error)
+	Start(ctx context.Context, opts StartOpts) (*Body, error)
 	Stop(ctx context.Context, bodyID string) error
 	Get(bodyID string) (*Body, bool)
 	List() []*Body
 }
 
-// SimulatedManager runs fully in-process (no Docker). Used for development.
 type SimulatedManager struct {
-	mu      sync.RWMutex
-	bodies  map[string]*Body
-	max     int
+	mu     sync.RWMutex
+	bodies map[string]*Body
+	max    int
 }
 
 func NewSimulatedManager(maxInstances int) *SimulatedManager {
 	if maxInstances <= 0 {
 		maxInstances = 10
 	}
-	return &SimulatedManager{
-		bodies: make(map[string]*Body),
-		max:    maxInstances,
-	}
+	return &SimulatedManager{bodies: make(map[string]*Body), max: maxInstances}
 }
 
-func (m *SimulatedManager) Start(ctx context.Context, personaID, deviceProfileID string, simulated bool) (*Body, error) {
+func (m *SimulatedManager) Start(ctx context.Context, opts StartOpts) (*Body, error) {
 	_ = ctx
 	m.mu.Lock()
 	defer m.mu.Unlock()
-
 	if len(m.bodies) >= m.max {
 		return nil, fmt.Errorf("max instances reached (%d)", m.max)
 	}
-
 	now := time.Now().UTC()
+	h := true
 	b := &Body{
 		ID:              uuid.New().String(),
-		PersonaID:       personaID,
-		DeviceProfileID: deviceProfileID,
+		PersonaID:       opts.PersonaID,
+		DeviceProfileID: opts.DeviceProfileID,
 		State:           StateRunning,
 		Simulated:       true,
 		ContainerID:     "sim-" + uuid.New().String()[:8],
 		CreatedAt:       now,
 		UpdatedAt:       now,
+		Healthy:         &h,
 	}
 	m.bodies[b.ID] = b
 	return b, nil
@@ -111,40 +121,4 @@ func (m *SimulatedManager) List() []*Body {
 		out = append(out, b)
 	}
 	return out
-}
-
-// DockerManager is a skeleton for real Redroid containers.
-// It currently falls back to simulated behavior until Docker socket + Redroid image are wired.
-type DockerManager struct {
-	inner      *SimulatedManager
-	redroidImage string
-}
-
-func NewDockerManager(maxInstances int, redroidImage string) *DockerManager {
-	if redroidImage == "" {
-		redroidImage = "redroid/redroid:latest"
-	}
-	return &DockerManager{
-		inner:        NewSimulatedManager(maxInstances),
-		redroidImage: redroidImage,
-	}
-}
-
-func (m *DockerManager) Start(ctx context.Context, personaID, deviceProfileID string, simulated bool) (*Body, error) {
-	// Real Docker/Redroid path will be implemented here:
-	// docker run --privileged -v ... redroid/redroid ...
-	// For now always use simulated so the control plane keeps working.
-	return m.inner.Start(ctx, personaID, deviceProfileID, true)
-}
-
-func (m *DockerManager) Stop(ctx context.Context, bodyID string) error {
-	return m.inner.Stop(ctx, bodyID)
-}
-
-func (m *DockerManager) Get(bodyID string) (*Body, bool) {
-	return m.inner.Get(bodyID)
-}
-
-func (m *DockerManager) List() []*Body {
-	return m.inner.List()
 }

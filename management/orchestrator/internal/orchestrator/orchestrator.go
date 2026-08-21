@@ -9,6 +9,7 @@ import (
 	"github.com/vikramiiitm/unborn/management/orchestrator/internal/body"
 	"github.com/vikramiiitm/unborn/management/orchestrator/internal/config"
 	"github.com/vikramiiitm/unborn/management/orchestrator/internal/identity"
+	"github.com/vikramiiitm/unborn/management/orchestrator/internal/license"
 	"github.com/vikramiiitm/unborn/management/orchestrator/internal/persona"
 	"github.com/vikramiiitm/unborn/management/orchestrator/internal/playbook"
 	"github.com/vikramiiitm/unborn/management/orchestrator/internal/proxy"
@@ -59,6 +60,7 @@ type Orchestrator struct {
 	vitality  vitality.Service
 	playbooks *playbook.Store
 	proxies   *proxy.Store
+	license   *license.Service
 	profiles  map[string]*identity.DeviceProfile
 }
 
@@ -83,29 +85,36 @@ func New(cfg *config.Config) *Orchestrator {
 		vit = vitality.NewPGService(pgt)
 	}
 
-	redroidCfg := body.DefaultRedroidConfig()
+	lic := license.NewService()
+	max := cfg.MaxInstances
+	if lim := lic.MaxInstances(); lim > 0 && lim < max {
+		max = lim
+	}
+
 	o := &Orchestrator{
 		cfg:       cfg,
 		personas:  repo,
-		bodies:    body.NewRedroidManager(cfg.MaxInstances, redroidCfg),
+		bodies:    body.NewRedroidManager(max, body.DefaultRedroidConfig()),
 		behavior:  behavior.NewEngine(),
 		vitality:  vit,
 		playbooks: playbook.NewStore(),
 		proxies:   proxy.NewStore(),
+		license:   lic,
 		profiles:  make(map[string]*identity.DeviceProfile),
 	}
 	for _, p := range identity.DefaultProfiles() {
 		o.profiles[p.ID] = p
 	}
-	log.Println("Body Manager: Redroid (docker if available, else simulated)")
+	log.Printf("License: tier=%s max_instances=%d valid=%v", lic.Status().Tier, lic.MaxInstances(), lic.Status().Valid)
 	return o
 }
 
-func (o *Orchestrator) Personas() PersonaRepository   { return o.personas }
-func (o *Orchestrator) Vitality() vitality.Service    { return o.vitality }
-func (o *Orchestrator) Behavior() *behavior.Engine    { return o.behavior }
-func (o *Orchestrator) Playbooks() *playbook.Store    { return o.playbooks }
-func (o *Orchestrator) Proxies() *proxy.Store         { return o.proxies }
+func (o *Orchestrator) Personas() PersonaRepository { return o.personas }
+func (o *Orchestrator) Vitality() vitality.Service  { return o.vitality }
+func (o *Orchestrator) Behavior() *behavior.Engine  { return o.behavior }
+func (o *Orchestrator) Playbooks() *playbook.Store  { return o.playbooks }
+func (o *Orchestrator) Proxies() *proxy.Store       { return o.proxies }
+func (o *Orchestrator) License() *license.Service   { return o.license }
 
 func (o *Orchestrator) ListInstances() []*body.Body { return o.bodies.List() }
 func (o *Orchestrator) GetInstance(id string) (*body.Body, bool) {
@@ -113,6 +122,13 @@ func (o *Orchestrator) GetInstance(id string) (*body.Body, bool) {
 }
 
 func (o *Orchestrator) CreateInstance(ctx context.Context, personaID string, simulated bool) (*body.Body, error) {
+	st := o.license.Status()
+	if !st.Valid {
+		return nil, ErrLicenseInvalid
+	}
+	if len(o.bodies.List()) >= st.MaxInstances {
+		return nil, ErrMaxInstancesReached
+	}
 	if _, err := o.personas.Get(ctx, personaID); err != nil {
 		return nil, ErrPersonaNotFound
 	}
@@ -121,9 +137,15 @@ func (o *Orchestrator) CreateInstance(ctx context.Context, personaID string, sim
 		profileID = id
 		break
 	}
-	// If persona has a proxy, pass host into redroid config in a later enhancement;
-	// for now Start still uses manager defaults.
-	b, err := o.bodies.Start(ctx, personaID, profileID, simulated)
+	opts := body.StartOpts{
+		PersonaID:       personaID,
+		DeviceProfileID: profileID,
+		Simulated:       simulated,
+	}
+	if px, ok := o.proxies.Get(personaID); ok {
+		opts.Network = body.NetworkOpts{ProxyHost: px.Host, ProxyPort: px.Port, ProxyType: px.Type}
+	}
+	b, err := o.bodies.Start(ctx, opts)
 	if err != nil {
 		return nil, err
 	}
@@ -148,5 +170,41 @@ func (o *Orchestrator) NextAction(ctx context.Context, personaID string) (behavi
 	if err != nil {
 		return behavior.Action{}, ErrPersonaNotFound
 	}
-	return o.behavior.NextAction(p, time.Now().UTC()), nil
+	act := o.behavior.NextAction(p, time.Now().UTC())
+	// Playbook influence (Phase 1: annotate reason)
+	for _, a := range o.playbooks.ListAssignments(personaID) {
+		if !a.Active {
+			continue
+		}
+		if pb, ok := o.playbooks.Get(a.PlaybookID); ok {
+			act.Reason = act.Reason + " | playbook:" + pb.Name
+			if pb.Kind == "warmup" && act.Type == "like" {
+				act.Type = "scroll"
+				act.Reason = "warmup: prefer observe over engage"
+			}
+			if pb.Kind == "presence" && pb.Params["window"] != "" {
+				act.Metadata = map[string]string{"preferred_window": pb.Params["window"]}
+			}
+			break
+		}
+	}
+	return act, nil
+}
+
+func (o *Orchestrator) CheckBodyHealth(ctx context.Context, bodyID string) (bool, string) {
+	b, ok := o.bodies.Get(bodyID)
+	if !ok {
+		return false, "not found"
+	}
+	if b.Simulated {
+		return true, "simulated"
+	}
+	if b.ADBPort <= 0 {
+		return false, "no adb port"
+	}
+	okADB := body.CheckADB(ctx, b.ADBPort)
+	if okADB {
+		return true, "adb device"
+	}
+	return false, "adb unreachable (is adb installed? container up?)"
 }

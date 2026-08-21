@@ -33,6 +33,7 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("POST /v1/instances", s.handleCreateInstance)
 	s.mux.HandleFunc("GET /v1/instances/{id}", s.handleGetInstance)
 	s.mux.HandleFunc("POST /v1/instances/{id}/stop", s.handleStopInstance)
+	s.mux.HandleFunc("GET /v1/instances/{id}/health", s.handleInstanceHealth)
 	s.mux.HandleFunc("GET /v1/personas", s.handleListPersonas)
 	s.mux.HandleFunc("POST /v1/personas", s.handleCreatePersona)
 	s.mux.HandleFunc("GET /v1/personas/{id}", s.handleGetPersona)
@@ -48,6 +49,8 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("PUT /v1/personas/{id}/proxy", s.handleSetProxy)
 	s.mux.HandleFunc("GET /v1/personas/{id}/proxy", s.handleGetProxy)
 	s.mux.HandleFunc("DELETE /v1/personas/{id}/proxy", s.handleDeleteProxy)
+	s.mux.HandleFunc("GET /v1/license", s.handleLicenseStatus)
+	s.mux.HandleFunc("POST /v1/license/activate", s.handleLicenseActivate)
 }
 
 func (s *Server) ListenAndServe(addr string) error {
@@ -88,11 +91,14 @@ func (s *Server) handleCreateInstance(w http.ResponseWriter, r *http.Request) {
 	}
 	inst, err := s.orch.CreateInstance(r.Context(), req.PersonaID, simulated || req.Simulated)
 	if err != nil {
-		if err == orchestrator.ErrPersonaNotFound {
+		switch err {
+		case orchestrator.ErrPersonaNotFound:
 			http.Error(w, err.Error(), http.StatusBadRequest)
-			return
+		case orchestrator.ErrLicenseInvalid, orchestrator.ErrMaxInstancesReached:
+			http.Error(w, err.Error(), http.StatusForbidden)
+		default:
+			http.Error(w, err.Error(), http.StatusInternalServerError)
 		}
-		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 	writeJSON(w, http.StatusCreated, inst)
@@ -113,6 +119,11 @@ func (s *Server) handleStopInstance(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]string{"status": "stopped"})
+}
+
+func (s *Server) handleInstanceHealth(w http.ResponseWriter, r *http.Request) {
+	ok, reason := s.orch.CheckBodyHealth(r.Context(), r.PathValue("id"))
+	writeJSON(w, http.StatusOK, map[string]any{"healthy": ok, "reason": reason})
 }
 
 func (s *Server) handleListPersonas(w http.ResponseWriter, r *http.Request) {
@@ -221,8 +232,7 @@ func (s *Server) handleCreatePlaybook(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "name required", http.StatusBadRequest)
 		return
 	}
-	p := s.orch.Playbooks().Create(req.Name, req.Description, req.Kind, req.Params)
-	writeJSON(w, http.StatusCreated, p)
+	writeJSON(w, http.StatusCreated, s.orch.Playbooks().Create(req.Name, req.Description, req.Kind, req.Params))
 }
 
 func (s *Server) handleAssignPlaybook(w http.ResponseWriter, r *http.Request) {
@@ -242,8 +252,7 @@ func (s *Server) handleAssignPlaybook(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleListAssignments(w http.ResponseWriter, r *http.Request) {
-	personaID := r.URL.Query().Get("persona_id")
-	writeJSON(w, http.StatusOK, s.orch.Playbooks().ListAssignments(personaID))
+	writeJSON(w, http.StatusOK, s.orch.Playbooks().ListAssignments(r.URL.Query().Get("persona_id")))
 }
 
 func (s *Server) handleListProxies(w http.ResponseWriter, r *http.Request) {
@@ -262,8 +271,7 @@ func (s *Server) handleSetProxy(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "host and port required", http.StatusBadRequest)
 		return
 	}
-	a := s.orch.Proxies().Set(r.PathValue("id"), req.Host, req.Port, req.Type, req.Username, req.Password)
-	writeJSON(w, http.StatusOK, a)
+	writeJSON(w, http.StatusOK, s.orch.Proxies().Set(r.PathValue("id"), req.Host, req.Port, req.Type, req.Username, req.Password))
 }
 
 func (s *Server) handleGetProxy(w http.ResponseWriter, r *http.Request) {
@@ -281,6 +289,25 @@ func (s *Server) handleDeleteProxy(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
+}
+
+func (s *Server) handleLicenseStatus(w http.ResponseWriter, r *http.Request) {
+	writeJSON(w, http.StatusOK, s.orch.License().Status())
+}
+
+func (s *Server) handleLicenseActivate(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		Key string `json:"key"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.Key == "" {
+		http.Error(w, "key required", http.StatusBadRequest)
+		return
+	}
+	if err := s.orch.License().Activate(req.Key); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	writeJSON(w, http.StatusOK, s.orch.License().Status())
 }
 
 func writeJSON(w http.ResponseWriter, status int, v any) {

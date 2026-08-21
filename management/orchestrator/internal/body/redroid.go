@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"os/exec"
-	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -12,14 +11,13 @@ import (
 	"github.com/google/uuid"
 )
 
-// RedroidConfig controls how real containers are launched.
 type RedroidConfig struct {
-	Image          string // e.g. redroid/redroid:14.0.0_64only-latest
-	DataRoot       string // host path for per-instance /data mounts
-	BaseADBPort    int    // first host port for ADB (5555+)
-	Width          int
-	Height         int
-	DPI            int
+	Image            string
+	DataRoot         string
+	BaseADBPort      int
+	Width            int
+	Height           int
+	DPI              int
 	DefaultProxyHost string
 	DefaultProxyPort int
 }
@@ -35,13 +33,11 @@ func DefaultRedroidConfig() RedroidConfig {
 	}
 }
 
-// RedroidManager starts real Redroid containers via Docker CLI when available.
-// Falls back to SimulatedManager if docker is missing or Start is called with simulated=true.
 type RedroidManager struct {
 	cfg    RedroidConfig
 	mu     sync.Mutex
 	bodies map[string]*Body
-	ports  map[int]string // hostPort -> bodyID
+	ports  map[int]string
 	max    int
 	sim    *SimulatedManager
 }
@@ -63,8 +59,7 @@ func NewRedroidManager(maxInstances int, cfg RedroidConfig) *RedroidManager {
 }
 
 func dockerAvailable() bool {
-	cmd := exec.Command("docker", "version", "--format", "{{.Server.Version}}")
-	return cmd.Run() == nil
+	return exec.Command("docker", "version", "--format", "{{.Server.Version}}").Run() == nil
 }
 
 func (m *RedroidManager) allocatePort() (int, error) {
@@ -76,9 +71,9 @@ func (m *RedroidManager) allocatePort() (int, error) {
 	return 0, fmt.Errorf("no free ADB ports")
 }
 
-func (m *RedroidManager) Start(ctx context.Context, personaID, deviceProfileID string, simulated bool) (*Body, error) {
-	if simulated || !dockerAvailable() {
-		return m.sim.Start(ctx, personaID, deviceProfileID, true)
+func (m *RedroidManager) Start(ctx context.Context, opts StartOpts) (*Body, error) {
+	if opts.Simulated || !dockerAvailable() {
+		return m.sim.Start(ctx, opts)
 	}
 
 	m.mu.Lock()
@@ -108,11 +103,19 @@ func (m *RedroidManager) Start(ctx context.Context, personaID, deviceProfileID s
 		fmt.Sprintf("androidboot.redroid_height=%d", m.cfg.Height),
 		fmt.Sprintf("androidboot.redroid_dpi=%d", m.cfg.DPI),
 	}
-	if m.cfg.DefaultProxyHost != "" {
+
+	// Per-start proxy: persona assignment wins over default config
+	proxyHost := opts.Network.ProxyHost
+	proxyPort := opts.Network.ProxyPort
+	if proxyHost == "" {
+		proxyHost = m.cfg.DefaultProxyHost
+		proxyPort = m.cfg.DefaultProxyPort
+	}
+	if proxyHost != "" {
 		args = append(args,
 			"androidboot.redroid_net_proxy_type=static",
-			"androidboot.redroid_net_proxy_host="+m.cfg.DefaultProxyHost,
-			fmt.Sprintf("androidboot.redroid_net_proxy_port=%d", m.cfg.DefaultProxyPort),
+			"androidboot.redroid_net_proxy_host="+proxyHost,
+			fmt.Sprintf("androidboot.redroid_net_proxy_port=%d", proxyPort),
 		)
 	}
 
@@ -129,11 +132,12 @@ func (m *RedroidManager) Start(ctx context.Context, personaID, deviceProfileID s
 	now := time.Now().UTC()
 	b := &Body{
 		ID:              bodyID,
-		PersonaID:       personaID,
-		DeviceProfileID: deviceProfileID,
+		PersonaID:       opts.PersonaID,
+		DeviceProfileID: opts.DeviceProfileID,
 		State:           StateRunning,
 		Simulated:       false,
 		ContainerID:     containerID,
+		ADBPort:         port,
 		CreatedAt:       now,
 		UpdatedAt:       now,
 	}
@@ -147,18 +151,15 @@ func (m *RedroidManager) Stop(ctx context.Context, bodyID string) error {
 	b, ok := m.bodies[bodyID]
 	m.mu.Unlock()
 	if !ok {
-		// may be simulated
 		return m.sim.Stop(ctx, bodyID)
 	}
 	if b.Simulated || b.ContainerID == "" {
 		return m.sim.Stop(ctx, bodyID)
 	}
-
 	cmd := exec.CommandContext(ctx, "docker", "rm", "-f", b.ContainerID)
 	if out, err := cmd.CombinedOutput(); err != nil {
 		return fmt.Errorf("docker rm: %w (%s)", err, strings.TrimSpace(string(out)))
 	}
-
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	b.State = StateStopped
@@ -189,14 +190,15 @@ func (m *RedroidManager) List() []*Body {
 		out = append(out, b)
 	}
 	m.mu.Unlock()
-	out = append(out, m.sim.List()...)
-	return out
+	return append(out, m.sim.List()...)
 }
 
-// ADBPort returns the host ADB port for a body if known.
 func (m *RedroidManager) ADBPort(bodyID string) (int, bool) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
+	if b, ok := m.bodies[bodyID]; ok && b.ADBPort > 0 {
+		return b.ADBPort, true
+	}
 	for p, id := range m.ports {
 		if id == bodyID {
 			return p, true
@@ -205,8 +207,21 @@ func (m *RedroidManager) ADBPort(bodyID string) (int, bool) {
 	return 0, false
 }
 
-// ParsePort helper for tests/config.
-func ParsePort(s string) int {
-	n, _ := strconv.Atoi(s)
-	return n
+// CheckADB pings adb connect to host:port (best-effort).
+func CheckADB(ctx context.Context, hostPort int) bool {
+	if hostPort <= 0 {
+		return false
+	}
+	addr := fmt.Sprintf("127.0.0.1:%d", hostPort)
+	cmd := exec.CommandContext(ctx, "adb", "connect", addr)
+	if err := cmd.Run(); err != nil {
+		// adb may be missing — try docker exec fallback is out of scope; mark unknown
+		return false
+	}
+	cmd = exec.CommandContext(ctx, "adb", "-s", addr, "get-state")
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		return false
+	}
+	return strings.Contains(string(out), "device")
 }

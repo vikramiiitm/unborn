@@ -1,19 +1,18 @@
 # Unborn – Features
 
 ## Phase 1
-
 - [x] Persona store (Postgres)
 - [x] Vitality (Postgres)
-- [x] Redroid manager
-- [x] Behavior loop
-- [x] Dashboard (minimal)
-- [x] Installer
-- [x] Playbooks skeleton + assign
+- [x] Redroid manager + **proxy on start**
+- [x] Behavior loop + **playbook-aware actions**
+- [x] Playbooks + assign
 - [x] Per-persona proxy API
-- [ ] Proxy applied on container start
-- [ ] Playbook execution engine
-- [ ] License service
-- [ ] ADB health
+- [x] License service (offline HMAC)
+- [x] ADB health check endpoint + loop nudge
+- [x] Dashboard + installer
+- [ ] Identity injection
+- [ ] Full playbook scheduler
+- [ ] CLI
 
 ## Phase 2+
-- [ ] Memory, sensors, Radar, NL DNA, conversation, MCP
+- Memory, sensors, Radar, NL DNA, conversation, MCP
