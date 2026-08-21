@@ -3,39 +3,16 @@ package orchestrator
 import (
 	"context"
 	"log"
-	"sync"
 	"time"
 
-	"github.com/google/uuid"
+	"github.com/vikramiiitm/unborn/management/orchestrator/internal/behavior"
+	"github.com/vikramiiitm/unborn/management/orchestrator/internal/body"
 	"github.com/vikramiiitm/unborn/management/orchestrator/internal/config"
 	"github.com/vikramiiitm/unborn/management/orchestrator/internal/identity"
 	"github.com/vikramiiitm/unborn/management/orchestrator/internal/persona"
+	"github.com/vikramiiitm/unborn/management/orchestrator/internal/vitality"
 )
 
-type InstanceState string
-
-const (
-	InstanceStatePending  InstanceState = "pending"
-	InstanceStateStarting InstanceState = "starting"
-	InstanceStateRunning  InstanceState = "running"
-	InstanceStateStopping InstanceState = "stopping"
-	InstanceStateStopped  InstanceState = "stopped"
-	InstanceStateFailed   InstanceState = "failed"
-)
-
-type Instance struct {
-	ID              string        `json:"id"`
-	PersonaID       string        `json:"persona_id"`
-	DeviceProfileID string        `json:"device_profile_id,omitempty"`
-	State           InstanceState `json:"state"`
-	CreatedAt       time.Time     `json:"created_at"`
-	UpdatedAt       time.Time     `json:"updated_at"`
-	ContainerID     string        `json:"container_id,omitempty"`
-	Simulated       bool          `json:"simulated"`
-	ErrorMessage    string        `json:"error_message,omitempty"`
-}
-
-// PersonaRepository is the interface both memory and Postgres stores satisfy.
 type PersonaRepository interface {
 	Create(ctx context.Context, p *persona.Persona) (*persona.Persona, error)
 	Get(ctx context.Context, id string) (*persona.Persona, error)
@@ -44,10 +21,7 @@ type PersonaRepository interface {
 	Delete(ctx context.Context, id string) error
 }
 
-// memoryAdapter wraps the old in-memory store to the new interface.
-type memoryAdapter struct {
-	s *persona.Store
-}
+type memoryAdapter struct{ s *persona.Store }
 
 func (m *memoryAdapter) Create(ctx context.Context, p *persona.Persona) (*persona.Persona, error) {
 	return m.s.Create(p), nil
@@ -76,20 +50,20 @@ func (m *memoryAdapter) Delete(ctx context.Context, id string) error {
 }
 
 type Orchestrator struct {
-	cfg       *config.Config
-	mu        sync.RWMutex
-	instances map[string]*Instance
-	personas  PersonaRepository
-	profiles  map[string]*identity.DeviceProfile
+	cfg      *config.Config
+	personas PersonaRepository
+	bodies   body.Manager
+	behavior *behavior.Engine
+	vitality *vitality.Tracker
+	profiles map[string]*identity.DeviceProfile
 }
 
 func New(cfg *config.Config) *Orchestrator {
 	ctx := context.Background()
 	var repo PersonaRepository
-
 	pg, err := persona.NewPostgresStore(ctx, cfg.DatabaseURL)
 	if err != nil {
-		log.Printf("postgres unavailable (%v) — falling back to in-memory Persona store", err)
+		log.Printf("postgres unavailable (%v) — in-memory Persona store", err)
 		repo = &memoryAdapter{s: persona.NewStore()}
 	} else {
 		log.Println("Persona Store: PostgreSQL connected and migrated")
@@ -97,95 +71,65 @@ func New(cfg *config.Config) *Orchestrator {
 	}
 
 	o := &Orchestrator{
-		cfg:       cfg,
-		instances: make(map[string]*Instance),
-		personas:  repo,
-		profiles:  make(map[string]*identity.DeviceProfile),
+		cfg:      cfg,
+		personas: repo,
+		bodies:   body.NewDockerManager(cfg.MaxInstances, ""),
+		behavior: behavior.NewEngine(),
+		vitality: vitality.NewTracker(),
+		profiles: make(map[string]*identity.DeviceProfile),
 	}
-
 	for _, p := range identity.DefaultProfiles() {
 		o.profiles[p.ID] = p
 	}
 	return o
 }
 
-func (o *Orchestrator) Personas() PersonaRepository {
-	return o.personas
+func (o *Orchestrator) Personas() PersonaRepository { return o.personas }
+func (o *Orchestrator) Vitality() *vitality.Tracker  { return o.vitality }
+func (o *Orchestrator) Behavior() *behavior.Engine   { return o.behavior }
+
+func (o *Orchestrator) ListInstances() []*body.Body {
+	return o.bodies.List()
 }
 
-func (o *Orchestrator) ListInstances() []*Instance {
-	o.mu.RLock()
-	defer o.mu.RUnlock()
-	result := make([]*Instance, 0, len(o.instances))
-	for _, inst := range o.instances {
-		result = append(result, inst)
-	}
-	return result
+func (o *Orchestrator) GetInstance(id string) (*body.Body, bool) {
+	return o.bodies.Get(id)
 }
 
-func (o *Orchestrator) GetInstance(id string) (*Instance, bool) {
-	o.mu.RLock()
-	defer o.mu.RUnlock()
-	inst, ok := o.instances[id]
-	return inst, ok
-}
-
-func (o *Orchestrator) CreateInstance(ctx context.Context, personaID string, simulated bool) (*Instance, error) {
-	o.mu.Lock()
-	defer o.mu.Unlock()
-
-	if len(o.instances) >= o.cfg.MaxInstances {
-		return nil, ErrMaxInstancesReached
-	}
-
+func (o *Orchestrator) CreateInstance(ctx context.Context, personaID string, simulated bool) (*body.Body, error) {
 	if _, err := o.personas.Get(ctx, personaID); err != nil {
 		return nil, ErrPersonaNotFound
 	}
-
 	var profileID string
 	for id := range o.profiles {
 		profileID = id
 		break
 	}
-
-	now := time.Now().UTC()
-	inst := &Instance{
-		ID:              uuid.New().String(),
-		PersonaID:       personaID,
-		DeviceProfileID: profileID,
-		State:           InstanceStatePending,
-		CreatedAt:       now,
-		UpdatedAt:       now,
-		Simulated:       simulated,
+	b, err := o.bodies.Start(ctx, personaID, profileID, simulated)
+	if err != nil {
+		return nil, err
 	}
-
-	if simulated {
-		inst.State = InstanceStateRunning
-		inst.ContainerID = "sim-" + inst.ID[:8]
-	}
-
-	o.instances[inst.ID] = inst
-	return inst, nil
+	o.vitality.Ensure(personaID)
+	return b, nil
 }
 
-func (o *Orchestrator) StopInstance(id string) error {
-	o.mu.Lock()
-	defer o.mu.Unlock()
-	inst, ok := o.instances[id]
-	if !ok {
-		return ErrInstanceNotFound
-	}
-	inst.State = InstanceStateStopped
-	inst.UpdatedAt = time.Now().UTC()
-	return nil
+func (o *Orchestrator) StopInstance(ctx context.Context, id string) error {
+	return o.bodies.Stop(ctx, id)
 }
 
 func (o *Orchestrator) ListDeviceProfiles() []*identity.DeviceProfile {
-	o.mu.RLock()
-	defer o.mu.RUnlock()
-	result := make([]*identity.DeviceProfile, 0, len(o.profiles))
+	out := make([]*identity.DeviceProfile, 0, len(o.profiles))
 	for _, p := range o.profiles {
-		result = append(result, p)
+		out = append(out, p)
 	}
-	return result
+	return out
+}
+
+// NextAction returns the next behavior action for a persona (Phase 1 rules).
+func (o *Orchestrator) NextAction(ctx context.Context, personaID string) (behavior.Action, error) {
+	p, err := o.personas.Get(ctx, personaID)
+	if err != nil {
+		return behavior.Action{}, ErrPersonaNotFound
+	}
+	return o.behavior.NextAction(p, time.Now().UTC()), nil
 }

@@ -9,6 +9,7 @@ import (
 	"github.com/vikramiiitm/unborn/management/orchestrator/internal/config"
 	"github.com/vikramiiitm/unborn/management/orchestrator/internal/orchestrator"
 	"github.com/vikramiiitm/unborn/management/orchestrator/internal/persona"
+	"github.com/vikramiiitm/unborn/management/orchestrator/internal/vitality"
 )
 
 type Server struct {
@@ -19,11 +20,7 @@ type Server struct {
 }
 
 func NewServer(orch *orchestrator.Orchestrator, cfg *config.Config) *Server {
-	s := &Server{
-		orch: orch,
-		cfg:  cfg,
-		mux:  http.NewServeMux(),
-	}
+	s := &Server{orch: orch, cfg: cfg, mux: http.NewServeMux()}
 	s.routes()
 	return s
 }
@@ -38,15 +35,15 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("POST /v1/personas", s.handleCreatePersona)
 	s.mux.HandleFunc("GET /v1/personas/{id}", s.handleGetPersona)
 	s.mux.HandleFunc("GET /v1/device-profiles", s.handleListDeviceProfiles)
+	s.mux.HandleFunc("GET /v1/personas/{id}/next-action", s.handleNextAction)
+	s.mux.HandleFunc("GET /v1/personas/{id}/vitality", s.handleGetVitality)
+	s.mux.HandleFunc("GET /v1/vitality", s.handleListVitality)
 }
 
 func (s *Server) ListenAndServe(addr string) error {
 	s.http = &http.Server{
-		Addr:         addr,
-		Handler:      s.mux,
-		ReadTimeout:  10 * time.Second,
-		WriteTimeout: 10 * time.Second,
-		IdleTimeout:  60 * time.Second,
+		Addr: addr, Handler: s.mux,
+		ReadTimeout: 10 * time.Second, WriteTimeout: 10 * time.Second, IdleTimeout: 60 * time.Second,
 	}
 	return s.http.ListenAndServe()
 }
@@ -59,10 +56,7 @@ func (s *Server) Shutdown(ctx context.Context) error {
 }
 
 func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
-	writeJSON(w, http.StatusOK, map[string]string{
-		"status":  "ok",
-		"service": "unborn-orchestrator",
-	})
+	writeJSON(w, http.StatusOK, map[string]string{"status": "ok", "service": "unborn-orchestrator"})
 }
 
 func (s *Server) handleListInstances(w http.ResponseWriter, r *http.Request) {
@@ -82,27 +76,20 @@ func (s *Server) handleCreateInstance(w http.ResponseWriter, r *http.Request) {
 	if r.URL.Query().Get("real") == "true" {
 		simulated = false
 	}
-	if req.Simulated {
-		simulated = true
-	}
-	inst, err := s.orch.CreateInstance(r.Context(), req.PersonaID, simulated)
+	inst, err := s.orch.CreateInstance(r.Context(), req.PersonaID, simulated || req.Simulated)
 	if err != nil {
-		switch err {
-		case orchestrator.ErrMaxInstancesReached:
-			http.Error(w, err.Error(), http.StatusTooManyRequests)
-		case orchestrator.ErrPersonaNotFound:
+		if err == orchestrator.ErrPersonaNotFound {
 			http.Error(w, err.Error(), http.StatusBadRequest)
-		default:
-			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
 		}
+		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 	writeJSON(w, http.StatusCreated, inst)
 }
 
 func (s *Server) handleGetInstance(w http.ResponseWriter, r *http.Request) {
-	id := r.PathValue("id")
-	inst, ok := s.orch.GetInstance(id)
+	inst, ok := s.orch.GetInstance(r.PathValue("id"))
 	if !ok {
 		http.Error(w, "instance not found", http.StatusNotFound)
 		return
@@ -111,13 +98,8 @@ func (s *Server) handleGetInstance(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleStopInstance(w http.ResponseWriter, r *http.Request) {
-	id := r.PathValue("id")
-	if err := s.orch.StopInstance(id); err != nil {
-		if err == orchestrator.ErrInstanceNotFound {
-			http.Error(w, err.Error(), http.StatusNotFound)
-			return
-		}
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+	if err := s.orch.StopInstance(r.Context(), r.PathValue("id")); err != nil {
+		http.Error(w, err.Error(), http.StatusNotFound)
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]string{"status": "stopped"})
@@ -174,12 +156,12 @@ func (s *Server) handleCreatePersona(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
+	s.orch.Vitality().Ensure(created.ID)
 	writeJSON(w, http.StatusCreated, created)
 }
 
 func (s *Server) handleGetPersona(w http.ResponseWriter, r *http.Request) {
-	id := r.PathValue("id")
-	p, err := s.orch.Personas().Get(r.Context(), id)
+	p, err := s.orch.Personas().Get(r.Context(), r.PathValue("id"))
 	if err != nil {
 		if err == persona.ErrNotFound {
 			http.Error(w, "persona not found", http.StatusNotFound)
@@ -193,6 +175,28 @@ func (s *Server) handleGetPersona(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) handleListDeviceProfiles(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, s.orch.ListDeviceProfiles())
+}
+
+func (s *Server) handleNextAction(w http.ResponseWriter, r *http.Request) {
+	act, err := s.orch.NextAction(r.Context(), r.PathValue("id"))
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusNotFound)
+		return
+	}
+	writeJSON(w, http.StatusOK, act)
+}
+
+func (s *Server) handleGetVitality(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
+	score := s.orch.Vitality().Get(id)
+	writeJSON(w, http.StatusOK, map[string]any{
+		"score": score,
+		"level": vitality.Level(score.Value),
+	})
+}
+
+func (s *Server) handleListVitality(w http.ResponseWriter, r *http.Request) {
+	writeJSON(w, http.StatusOK, s.orch.Vitality().List())
 }
 
 func writeJSON(w http.ResponseWriter, status int, v any) {

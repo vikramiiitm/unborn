@@ -7,52 +7,49 @@ Legend: [ ] Not started · [~] In progress · [x] Done (basic) · [+] Iterated
 ## Phase 1 – Sellable MVP
 
 ### Core
-- [x] Repo structure + tracking
+- [x] Repo + tracking + docs
 - [x] Persona Schema v0
 - [x] Docker Compose foundation
-- [x] Orchestrator skeleton (Go) + simulated bodies
-- [x] **PostgreSQL-backed Persona Store** (in-memory fallback)
-- [x] Basic DeviceProfile
-- [x] Minimal HTTP API
+- [x] Orchestrator (Go)
+- [x] PostgreSQL Persona Store
+- [x] Body Manager (simulated + Redroid-ready skeleton)
+- [x] Behavior Engine skeleton (rule-based)
+- [x] Vitality Tracker skeleton
+- [x] Minimal HTTP API (personas, instances, next-action, vitality)
 - [ ] Real Redroid lifecycle
-- [ ] Basic Behavior Engine
-- [ ] Vitality score (skeleton)
+- [ ] Continuous behavior loop
 - [ ] One-command installer
 - [ ] License service
-- [ ] Minimal CLI / Dashboard
+- [ ] CLI / Dashboard
 
 ### Identity & Network
 - [x] Basic DeviceProfile
-- [ ] Rich identity generation
-- [ ] Network isolation + proxy forcing
-- [ ] Identity injection
+- [ ] Rich identity + injection
+- [ ] Network isolation + proxy
 
 ---
 
 ## Phase 2 – Realism Leap
-- [ ] Hierarchical memory + summarization
-- [ ] High-quality sensor + touch trajectories
-- [ ] Frida injection path
-- [ ] Basic Detection Radar
-- [ ] Natural Language DNA generator
-- [ ] Population-level distinctiveness controls
+- [ ] Hierarchical memory
+- [ ] Sensor + touch trajectories
+- [ ] Frida path
+- [ ] Detection Radar
+- [ ] NL DNA generator
+- [ ] Population distinctiveness
 
 ---
 
 ## Phase 3 – Moat
-- [ ] Long-term persona evolution
-- [ ] Strong population realism
-- [ ] Conversational interface
-- [ ] MCP tool use
-- [ ] Advanced Vitality + adaptation
-- [ ] Self-improving signals (opt-in)
+- [ ] Long-term evolution
+- [ ] Conversation + MCP
+- [ ] Advanced Vitality
+- [ ] Self-improving signals
 
 ---
 
-## Cross-Cutting (Locked)
+## Cross-Cutting
 - [x] Farming-with-souls positioning
 - [x] Hybrid ownership
-- [x] Full-power modular philosophy
+- [x] Modular full-power philosophy
 - [x] Meaningful population scale
-- [x] Vitality / consequence system design
-- [ ] Human perception testing protocol
+- [x] Vitality design

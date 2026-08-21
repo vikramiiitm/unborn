@@ -5,57 +5,54 @@ Last updated: 2026-08-22
 ## Current Phase
 **Phase 1 – Sellable MVP Foundation** (in progress)
 
-## Positioning (Locked)
-We are a farming system. The moat is that every body has a Persona (soul).  
-We operate at meaningful population scale. We optimize for sustainable, believable attention.
-
-See `docs/farming-with-souls.md` and `docs/go-to-market.md`.
+## Positioning
+Farming with souls. Meaningful population scale. Sustainable believable attention.
 
 ---
 
 ## What Is Built
 
 ### Documentation
-- [x] Philosophy, positioning, GTM, scale architecture, vitality, ownership, stress test
-- [x] Docs index, ADRs, tracking system
+- [x] Full strategy, philosophy, GTM, scale architecture, vitality design, ADRs
 
 ### Code
-- [x] Repo structure
 - [x] Persona Schema v0
-- [x] Docker Compose foundation (Postgres + Redis + Orchestrator)
-- [x] Orchestrator (Go)
-  - **PostgreSQL-backed Persona Store** (with in-memory fallback)
-  - Auto-migration on startup
-  - DeviceProfile (basic identity)
-  - Simulated body mode
-  - HTTP API: health, personas, instances, device-profiles
-- [ ] Real Redroid body lifecycle
-- [ ] Behavior Engine
-- [ ] Vitality module
-- [ ] Installer, CLI, Dashboard
+- [x] Docker Compose (Postgres + Redis + Orchestrator)
+- [x] PostgreSQL Persona Store (+ in-memory fallback)
+- [x] Body Manager interface (simulated + Docker/Redroid skeleton)
+- [x] Behavior Engine skeleton (rule-based, engagement-aware)
+- [x] Vitality Tracker skeleton (0–100, levels, adjust API)
+- [x] HTTP API:
+  - personas, instances, device-profiles
+  - `GET /v1/personas/{id}/next-action`
+  - `GET /v1/personas/{id}/vitality` + `GET /v1/vitality`
+- [ ] Real Redroid container start/stop (skeleton only)
+- [ ] Behavior loop that actually drives bodies
+- [ ] Vitality driven by Radar signals
+- [ ] Installer / CLI / Dashboard
 
 ---
 
-## How to try
+## Try it
 
 ```bash
-cd docker
-docker compose up --build
+cd docker && docker compose up --build
 
-curl -X POST http://localhost:8080/v1/personas \
-  -H "Content-Type: application/json" \
-  -d '{"display_name":"Ava","location":"Berlin","timezone":"Europe/Berlin","age_min":26,"age_max":28}'
+# Create persona
+curl -X POST http://localhost:8080/v1/personas -H 'Content-Type: application/json' \
+  -d '{"display_name":"Ava","location":"Berlin","timezone":"Europe/Berlin","engagement":"thoughtful_commenter"}'
 
-curl http://localhost:8080/v1/personas
+# Next action for that persona
+curl http://localhost:8080/v1/personas/<id>/next-action
+
+# Vitality
+curl http://localhost:8080/v1/personas/<id>/vitality
 ```
-
-Personas now persist in PostgreSQL across restarts.
 
 ---
 
-## Next Technical Priorities
-1. Real Redroid body lifecycle
-2. Simple rule-based Behavior Engine
-3. Vitality score skeleton
-4. One-command installer
-5. Network isolation + proxy forcing
+## Next
+1. Wire real Redroid via Docker socket
+2. Background behavior loop (persona → action → body)
+3. Persist vitality + feed from future Radar
+4. Installer script
