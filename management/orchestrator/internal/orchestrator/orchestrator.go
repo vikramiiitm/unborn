@@ -70,10 +70,11 @@ func New(cfg *config.Config) *Orchestrator {
 		repo = pg
 	}
 
+	redroidCfg := body.DefaultRedroidConfig()
 	o := &Orchestrator{
 		cfg:      cfg,
 		personas: repo,
-		bodies:   body.NewDockerManager(cfg.MaxInstances, ""),
+		bodies:   body.NewRedroidManager(cfg.MaxInstances, redroidCfg),
 		behavior: behavior.NewEngine(),
 		vitality: vitality.NewTracker(),
 		profiles: make(map[string]*identity.DeviceProfile),
@@ -81,6 +82,7 @@ func New(cfg *config.Config) *Orchestrator {
 	for _, p := range identity.DefaultProfiles() {
 		o.profiles[p.ID] = p
 	}
+	log.Println("Body Manager: Redroid (docker if available, else simulated)")
 	return o
 }
 
@@ -125,7 +127,6 @@ func (o *Orchestrator) ListDeviceProfiles() []*identity.DeviceProfile {
 	return out
 }
 
-// NextAction returns the next behavior action for a persona (Phase 1 rules).
 func (o *Orchestrator) NextAction(ctx context.Context, personaID string) (behavior.Action, error) {
 	p, err := o.personas.Get(ctx, personaID)
 	if err != nil {

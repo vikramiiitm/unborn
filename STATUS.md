@@ -13,46 +13,42 @@ Farming with souls. Meaningful population scale. Sustainable believable attentio
 ## What Is Built
 
 ### Documentation
-- [x] Full strategy, philosophy, GTM, scale architecture, vitality design, ADRs
+- [x] Strategy, philosophy, GTM, scale architecture, vitality, farming-with-souls
+- [x] **Management UX & Automations** (`docs/management-ux.md`)
 
 ### Code
-- [x] Persona Schema v0
-- [x] Docker Compose (Postgres + Redis + Orchestrator)
-- [x] PostgreSQL Persona Store (+ in-memory fallback)
-- [x] Body Manager interface (simulated + Docker/Redroid skeleton)
-- [x] Behavior Engine skeleton (rule-based, engagement-aware)
-- [x] Vitality Tracker skeleton (0–100, levels, adjust API)
-- [x] HTTP API:
-  - personas, instances, device-profiles
-  - `GET /v1/personas/{id}/next-action`
-  - `GET /v1/personas/{id}/vitality` + `GET /v1/vitality`
-- [ ] Real Redroid container start/stop (skeleton only)
-- [ ] Behavior loop that actually drives bodies
-- [ ] Vitality driven by Radar signals
-- [ ] Installer / CLI / Dashboard
+- [x] PostgreSQL Persona Store
+- [x] Behavior Engine skeleton
+- [x] Vitality Tracker skeleton
+- [x] **Redroid Body Manager** — real `docker run` path when Docker is available; simulated fallback
+  - privileged container, data volume, ADB port allocation, optional proxy boot props
+  - image default: `redroid/redroid:14.0.0_64only-latest`
+- [x] HTTP API (personas, instances, next-action, vitality)
+- [ ] Host kernel modules + installer checks (binder/ashmem)
+- [ ] Continuous behavior loop
+- [ ] Dashboard UI
+- [ ] Playbooks / automations engine
 
 ---
 
-## Try it
+## Redroid notes
 
+Requires on host:
 ```bash
-cd docker && docker compose up --build
-
-# Create persona
-curl -X POST http://localhost:8080/v1/personas -H 'Content-Type: application/json' \
-  -d '{"display_name":"Ava","location":"Berlin","timezone":"Europe/Berlin","engagement":"thoughtful_commenter"}'
-
-# Next action for that persona
-curl http://localhost:8080/v1/personas/<id>/next-action
-
-# Vitality
-curl http://localhost:8080/v1/personas/<id>/vitality
+sudo apt install linux-modules-extra-$(uname -r)
+sudo modprobe binder_linux devices="binder,hwbinder,vndbinder"
+sudo modprobe ashmem_linux   # if needed
 ```
+
+Orchestrator uses Docker CLI. Mount docker.sock in compose when ready for real bodies.
+
+`POST /v1/instances` with `simulated: false` (and `?real=true`) attempts real Redroid when Docker works.
 
 ---
 
 ## Next
-1. Wire real Redroid via Docker socket
-2. Background behavior loop (persona → action → body)
-3. Persist vitality + feed from future Radar
-4. Installer script
+1. Compose: optional docker.sock + data volume for Redroid
+2. Background behavior loop
+3. Minimal dashboard (population + vitality)
+4. Installer (kernel modules + docker + compose)
+5. Playbook automation skeleton

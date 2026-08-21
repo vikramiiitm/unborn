@@ -8,24 +8,25 @@ Legend: [ ] Not started · [~] In progress · [x] Done (basic) · [+] Iterated
 
 ### Core
 - [x] Repo + tracking + docs
-- [x] Persona Schema v0
-- [x] Docker Compose foundation
+- [x] Persona Schema v0 + PostgreSQL store
 - [x] Orchestrator (Go)
-- [x] PostgreSQL Persona Store
-- [x] Body Manager (simulated + Redroid-ready skeleton)
-- [x] Behavior Engine skeleton (rule-based)
+- [x] Behavior Engine skeleton
 - [x] Vitality Tracker skeleton
-- [x] Minimal HTTP API (personas, instances, next-action, vitality)
-- [ ] Real Redroid lifecycle
+- [x] **Redroid Body Manager** (docker run + simulated fallback)
+- [x] Management UX research doc
+- [x] Minimal HTTP API
+- [ ] docker.sock in compose + data volumes
 - [ ] Continuous behavior loop
-- [ ] One-command installer
+- [ ] Installer (modules + docker)
+- [ ] Minimal Dashboard
+- [ ] Playbooks / automations engine
 - [ ] License service
-- [ ] CLI / Dashboard
 
 ### Identity & Network
 - [x] Basic DeviceProfile
-- [ ] Rich identity + injection
-- [ ] Network isolation + proxy
+- [x] Proxy boot props on Redroid start (config)
+- [ ] Per-persona proxy assignment API
+- [ ] Rich identity injection
 
 ---
 
@@ -33,23 +34,24 @@ Legend: [ ] Not started · [~] In progress · [x] Done (basic) · [+] Iterated
 - [ ] Hierarchical memory
 - [ ] Sensor + touch trajectories
 - [ ] Frida path
-- [ ] Detection Radar
+- [ ] Detection Radar + Vitality coupling
 - [ ] NL DNA generator
 - [ ] Population distinctiveness
+- [ ] Full Persona detail + bulk UI
 
 ---
 
 ## Phase 3 – Moat
-- [ ] Long-term evolution
 - [ ] Conversation + MCP
-- [ ] Advanced Vitality
+- [ ] Advanced automations
 - [ ] Self-improving signals
 
 ---
 
 ## Cross-Cutting
-- [x] Farming-with-souls positioning
+- [x] Farming-with-souls
 - [x] Hybrid ownership
-- [x] Modular full-power philosophy
+- [x] Modular philosophy
 - [x] Meaningful population scale
 - [x] Vitality design
+- [x] Management UX blueprint
