@@ -56,7 +56,7 @@ type Orchestrator struct {
 	cfg       *config.Config
 	personas  PersonaRepository
 	bodies    body.Manager
-	redroid   *body.RedroidManager // typed access for wipe/adb when available
+	redroid   *body.RedroidManager
 	behavior  *behavior.Engine
 	vitality  vitality.Service
 	playbooks *playbook.Store
@@ -108,7 +108,7 @@ func New(cfg *config.Config) *Orchestrator {
 	for _, p := range identity.DefaultProfiles() {
 		o.profiles[p.ID] = p
 	}
-	log.Printf("Redroid: image=%s data_root configured, license max=%d", body.DefaultRedroidConfig().Image, max)
+	log.Printf("Redroid ready; license max=%d", max)
 	return o
 }
 
@@ -151,7 +151,6 @@ func (o *Orchestrator) CreateInstance(ctx context.Context, personaID string, sim
 	if px, ok := o.proxies.Get(personaID); ok {
 		opts.Network = body.NetworkOpts{ProxyHost: px.Host, ProxyPort: px.Port, ProxyType: px.Type}
 	}
-	// Seed future identity injection from device profile
 	if profile != nil {
 		opts.ExtraBootProps["unborn.device_model"] = profile.Model
 		opts.ExtraBootProps["unborn.device_manufacturer"] = profile.Manufacturer
@@ -161,6 +160,19 @@ func (o *Orchestrator) CreateInstance(ctx context.Context, personaID string, sim
 		return nil, err
 	}
 	o.vitality.Ensure(personaID)
+
+	// Async identity injection for real bodies
+	if !b.Simulated && profile != nil && b.ADBPort > 0 {
+		go func(port int, prof *identity.DeviceProfile, bodyID string) {
+			ctx2, cancel := context.WithTimeout(context.Background(), 90*time.Second)
+			defer cancel()
+			if err := identity.InjectViaADB(ctx2, port, prof); err != nil {
+				log.Printf("identity inject body=%s: %v", bodyID[:8], err)
+			} else {
+				log.Printf("identity inject ok body=%s model=%s", bodyID[:8], prof.Model)
+			}
+		}(b.ADBPort, profile, b.ID)
+	}
 	return b, nil
 }
 
@@ -173,6 +185,27 @@ func (o *Orchestrator) WipeInstanceData(id string) error {
 		return ErrInstanceNotFound
 	}
 	return o.redroid.WipeData(id)
+}
+
+func (o *Orchestrator) InjectIdentity(ctx context.Context, bodyID string) error {
+	b, ok := o.bodies.Get(bodyID)
+	if !ok {
+		return ErrInstanceNotFound
+	}
+	if b.Simulated {
+		return nil
+	}
+	prof := o.profiles[b.DeviceProfileID]
+	if prof == nil {
+		for _, p := range o.profiles {
+			prof = p
+			break
+		}
+	}
+	if prof == nil || b.ADBPort <= 0 {
+		return ErrInstanceNotFound
+	}
+	return identity.InjectViaADB(ctx, b.ADBPort, prof)
 }
 
 func (o *Orchestrator) ListDeviceProfiles() []*identity.DeviceProfile {
@@ -229,7 +262,6 @@ func (o *Orchestrator) CheckBodyHealth(ctx context.Context, bodyID string) (bool
 	if body.CheckADB(ctx, b.ADBPort) {
 		return true, "adb device"
 	}
-	// Container up but adb not ready yet is common during boot
 	if ref != "" && body.ContainerRunning(ctx, ref) {
 		return false, "container up, adb not ready"
 	}
