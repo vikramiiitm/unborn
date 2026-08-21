@@ -91,11 +91,15 @@ func (s *Server) handleCreateInstance(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "persona_id is required", http.StatusBadRequest)
 		return
 	}
-	simulated := true
+	simulated := req.Simulated
 	if r.URL.Query().Get("real") == "true" {
 		simulated = false
+	} else if r.URL.Query().Get("simulated") == "true" {
+		simulated = true
+	} else if !req.Simulated && r.URL.Query().Get("real") != "true" && r.URL.Query().Get("simulated") != "false" {
+		simulated = true
 	}
-	inst, err := s.orch.CreateInstance(r.Context(), req.PersonaID, simulated || req.Simulated)
+	inst, err := s.orch.CreateInstance(r.Context(), req.PersonaID, simulated)
 	if err != nil {
 		switch err {
 		case orchestrator.ErrPersonaNotFound:

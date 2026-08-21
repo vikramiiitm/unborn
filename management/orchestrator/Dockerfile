@@ -8,7 +8,7 @@ RUN go mod tidy
 RUN CGO_ENABLED=0 GOOS=linux go build -o /orchestrator ./main.go
 
 FROM alpine:3.20
-RUN apk add --no-cache ca-certificates
+RUN apk add --no-cache ca-certificates docker-cli android-tools
 WORKDIR /app
 COPY --from=builder /orchestrator /app/orchestrator
 EXPOSE 8080
