@@ -7,13 +7,13 @@ Legend: [ ] Not started · [~] In progress · [x] Done (basic) · [+] Iterated
 ## Phase 1 – Sellable MVP
 
 ### Core
-- [x] Repo structure + tracking (STATUS, FEATURES, ADRs, docs index)
+- [x] Repo structure + tracking
 - [x] Persona Schema v0
 - [x] Docker Compose foundation
 - [x] Orchestrator skeleton (Go) + simulated bodies
-- [x] In-memory Persona Store + basic DeviceProfile
+- [x] **PostgreSQL-backed Persona Store** (in-memory fallback)
+- [x] Basic DeviceProfile
 - [x] Minimal HTTP API
-- [ ] PostgreSQL-backed Persona Store
 - [ ] Real Redroid lifecycle
 - [ ] Basic Behavior Engine
 - [ ] Vitality score (skeleton)
@@ -34,7 +34,7 @@ Legend: [ ] Not started · [~] In progress · [x] Done (basic) · [+] Iterated
 - [ ] High-quality sensor + touch trajectories
 - [ ] Frida injection path
 - [ ] Basic Detection Radar
-- [ ] Natural Language DNA generator (first version)
+- [ ] Natural Language DNA generator
 - [ ] Population-level distinctiveness controls
 
 ---
@@ -53,6 +53,6 @@ Legend: [ ] Not started · [~] In progress · [x] Done (basic) · [+] Iterated
 - [x] Farming-with-souls positioning
 - [x] Hybrid ownership
 - [x] Full-power modular philosophy
-- [x] Meaningful population scale (not tiny pods)
+- [x] Meaningful population scale
 - [x] Vitality / consequence system design
 - [ ] Human perception testing protocol

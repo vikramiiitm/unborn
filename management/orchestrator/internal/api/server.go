@@ -24,26 +24,19 @@ func NewServer(orch *orchestrator.Orchestrator, cfg *config.Config) *Server {
 		cfg:  cfg,
 		mux:  http.NewServeMux(),
 	}
-
 	s.routes()
 	return s
 }
 
 func (s *Server) routes() {
 	s.mux.HandleFunc("GET /health", s.handleHealth)
-
-	// Instances (bodies)
 	s.mux.HandleFunc("GET /v1/instances", s.handleListInstances)
 	s.mux.HandleFunc("POST /v1/instances", s.handleCreateInstance)
 	s.mux.HandleFunc("GET /v1/instances/{id}", s.handleGetInstance)
 	s.mux.HandleFunc("POST /v1/instances/{id}/stop", s.handleStopInstance)
-
-	// Personas (souls)
 	s.mux.HandleFunc("GET /v1/personas", s.handleListPersonas)
 	s.mux.HandleFunc("POST /v1/personas", s.handleCreatePersona)
 	s.mux.HandleFunc("GET /v1/personas/{id}", s.handleGetPersona)
-
-	// Identity
 	s.mux.HandleFunc("GET /v1/device-profiles", s.handleListDeviceProfiles)
 }
 
@@ -78,15 +71,13 @@ func (s *Server) handleListInstances(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) handleCreateInstance(w http.ResponseWriter, r *http.Request) {
 	var req struct {
-		PersonaID  string `json:"persona_id"`
-		Simulated  bool   `json:"simulated"`
+		PersonaID string `json:"persona_id"`
+		Simulated bool   `json:"simulated"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.PersonaID == "" {
 		http.Error(w, "persona_id is required", http.StatusBadRequest)
 		return
 	}
-
-	// Default to simulated in early Phase 1 for easier development
 	simulated := true
 	if r.URL.Query().Get("real") == "true" {
 		simulated = false
@@ -94,8 +85,7 @@ func (s *Server) handleCreateInstance(w http.ResponseWriter, r *http.Request) {
 	if req.Simulated {
 		simulated = true
 	}
-
-	inst, err := s.orch.CreateInstance(req.PersonaID, simulated)
+	inst, err := s.orch.CreateInstance(r.Context(), req.PersonaID, simulated)
 	if err != nil {
 		switch err {
 		case orchestrator.ErrMaxInstancesReached:
@@ -107,7 +97,6 @@ func (s *Server) handleCreateInstance(w http.ResponseWriter, r *http.Request) {
 		}
 		return
 	}
-
 	writeJSON(w, http.StatusCreated, inst)
 }
 
@@ -135,7 +124,12 @@ func (s *Server) handleStopInstance(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleListPersonas(w http.ResponseWriter, r *http.Request) {
-	writeJSON(w, http.StatusOK, s.orch.PersonaStore().List())
+	list, err := s.orch.Personas().List(r.Context())
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	writeJSON(w, http.StatusOK, list)
 }
 
 func (s *Server) handleCreatePersona(w http.ResponseWriter, r *http.Request) {
@@ -151,7 +145,6 @@ func (s *Server) handleCreatePersona(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "invalid json", http.StatusBadRequest)
 		return
 	}
-
 	if req.Location == "" {
 		req.Location = "Unknown"
 	}
@@ -164,7 +157,6 @@ func (s *Server) handleCreatePersona(w http.ResponseWriter, r *http.Request) {
 	if req.AgeMax == 0 {
 		req.AgeMax = 30
 	}
-
 	eng := persona.EngagementThoughtfulCommenter
 	switch req.Engagement {
 	case "lurker":
@@ -176,17 +168,24 @@ func (s *Server) handleCreatePersona(w http.ResponseWriter, r *http.Request) {
 	case "selective_engager":
 		eng = persona.EngagementSelectiveEngager
 	}
-
 	p := persona.New(req.DisplayName, req.Location, req.Timezone, req.AgeMin, req.AgeMax, eng)
-	s.orch.PersonaStore().Create(p)
-	writeJSON(w, http.StatusCreated, p)
+	created, err := s.orch.Personas().Create(r.Context(), p)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	writeJSON(w, http.StatusCreated, created)
 }
 
 func (s *Server) handleGetPersona(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")
-	p, ok := s.orch.PersonaStore().Get(id)
-	if !ok {
-		http.Error(w, "persona not found", http.StatusNotFound)
+	p, err := s.orch.Personas().Get(r.Context(), id)
+	if err != nil {
+		if err == persona.ErrNotFound {
+			http.Error(w, "persona not found", http.StatusNotFound)
+			return
+		}
+		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 	writeJSON(w, http.StatusOK, p)

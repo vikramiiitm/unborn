@@ -1,6 +1,6 @@
 # Unborn – Project Status
 
-Last updated: 2026-08-20
+Last updated: 2026-08-22
 
 ## Current Phase
 **Phase 1 – Sellable MVP Foundation** (in progress)
@@ -15,29 +15,28 @@ See `docs/farming-with-souls.md` and `docs/go-to-market.md`.
 
 ## What Is Built
 
-### Documentation (Cleaned)
+### Documentation
 - [x] Philosophy, positioning, GTM, scale architecture, vitality, ownership, stress test
-- [x] Docs index (`docs/README.md`)
-- [x] ADRs + tracking system
+- [x] Docs index, ADRs, tracking system
 
 ### Code
 - [x] Repo structure
 - [x] Persona Schema v0
 - [x] Docker Compose foundation (Postgres + Redis + Orchestrator)
 - [x] Orchestrator (Go)
-  - Persona Store (in-memory)
+  - **PostgreSQL-backed Persona Store** (with in-memory fallback)
+  - Auto-migration on startup
   - DeviceProfile (basic identity)
   - Simulated body mode
-  - HTTP API for personas, instances, device profiles
-- [ ] PostgreSQL-backed Persona Store
-- [ ] Real Redroid lifecycle
+  - HTTP API: health, personas, instances, device-profiles
+- [ ] Real Redroid body lifecycle
 - [ ] Behavior Engine
 - [ ] Vitality module
 - [ ] Installer, CLI, Dashboard
 
 ---
 
-## How to try the current skeleton
+## How to try
 
 ```bash
 cd docker
@@ -47,16 +46,16 @@ curl -X POST http://localhost:8080/v1/personas \
   -H "Content-Type: application/json" \
   -d '{"display_name":"Ava","location":"Berlin","timezone":"Europe/Berlin","age_min":26,"age_max":28}'
 
-curl -X POST http://localhost:8080/v1/instances \
-  -H "Content-Type: application/json" \
-  -d '{"persona_id":"<id>","simulated":true}'
+curl http://localhost:8080/v1/personas
 ```
+
+Personas now persist in PostgreSQL across restarts.
 
 ---
 
 ## Next Technical Priorities
-1. PostgreSQL Persona Store
-2. Real Redroid body lifecycle
-3. Simple Behavior Engine
-4. Vitality score skeleton
-5. Installer
+1. Real Redroid body lifecycle
+2. Simple rule-based Behavior Engine
+3. Vitality score skeleton
+4. One-command installer
+5. Network isolation + proxy forcing

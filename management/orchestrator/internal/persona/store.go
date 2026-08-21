@@ -5,8 +5,8 @@ import (
 	"time"
 )
 
-// Store is a simple in-memory Persona store for Phase 1.
-// Later this will be backed by PostgreSQL (see ADR-0003).
+// Store is the in-memory Persona store (kept for tests / fallback).
+// Production uses PostgresStore.
 type Store struct {
 	mu       sync.RWMutex
 	personas map[string]*Persona
