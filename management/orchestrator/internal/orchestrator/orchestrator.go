@@ -10,6 +10,8 @@ import (
 	"github.com/vikramiiitm/unborn/management/orchestrator/internal/config"
 	"github.com/vikramiiitm/unborn/management/orchestrator/internal/identity"
 	"github.com/vikramiiitm/unborn/management/orchestrator/internal/persona"
+	"github.com/vikramiiitm/unborn/management/orchestrator/internal/playbook"
+	"github.com/vikramiiitm/unborn/management/orchestrator/internal/proxy"
 	"github.com/vikramiiitm/unborn/management/orchestrator/internal/vitality"
 )
 
@@ -50,12 +52,14 @@ func (m *memoryAdapter) Delete(ctx context.Context, id string) error {
 }
 
 type Orchestrator struct {
-	cfg      *config.Config
-	personas PersonaRepository
-	bodies   body.Manager
-	behavior *behavior.Engine
-	vitality *vitality.Tracker
-	profiles map[string]*identity.DeviceProfile
+	cfg       *config.Config
+	personas  PersonaRepository
+	bodies    body.Manager
+	behavior  *behavior.Engine
+	vitality  vitality.Service
+	playbooks *playbook.Store
+	proxies   *proxy.Store
+	profiles  map[string]*identity.DeviceProfile
 }
 
 func New(cfg *config.Config) *Orchestrator {
@@ -70,14 +74,25 @@ func New(cfg *config.Config) *Orchestrator {
 		repo = pg
 	}
 
+	var vit vitality.Service
+	if pgt, err := vitality.NewPostgresTracker(ctx, cfg.DatabaseURL); err != nil {
+		log.Printf("vitality postgres unavailable (%v) — memory", err)
+		vit = vitality.NewMemoryService()
+	} else {
+		log.Println("Vitality: PostgreSQL connected")
+		vit = vitality.NewPGService(pgt)
+	}
+
 	redroidCfg := body.DefaultRedroidConfig()
 	o := &Orchestrator{
-		cfg:      cfg,
-		personas: repo,
-		bodies:   body.NewRedroidManager(cfg.MaxInstances, redroidCfg),
-		behavior: behavior.NewEngine(),
-		vitality: vitality.NewTracker(),
-		profiles: make(map[string]*identity.DeviceProfile),
+		cfg:       cfg,
+		personas:  repo,
+		bodies:    body.NewRedroidManager(cfg.MaxInstances, redroidCfg),
+		behavior:  behavior.NewEngine(),
+		vitality:  vit,
+		playbooks: playbook.NewStore(),
+		proxies:   proxy.NewStore(),
+		profiles:  make(map[string]*identity.DeviceProfile),
 	}
 	for _, p := range identity.DefaultProfiles() {
 		o.profiles[p.ID] = p
@@ -86,14 +101,13 @@ func New(cfg *config.Config) *Orchestrator {
 	return o
 }
 
-func (o *Orchestrator) Personas() PersonaRepository { return o.personas }
-func (o *Orchestrator) Vitality() *vitality.Tracker  { return o.vitality }
-func (o *Orchestrator) Behavior() *behavior.Engine   { return o.behavior }
+func (o *Orchestrator) Personas() PersonaRepository   { return o.personas }
+func (o *Orchestrator) Vitality() vitality.Service    { return o.vitality }
+func (o *Orchestrator) Behavior() *behavior.Engine    { return o.behavior }
+func (o *Orchestrator) Playbooks() *playbook.Store    { return o.playbooks }
+func (o *Orchestrator) Proxies() *proxy.Store         { return o.proxies }
 
-func (o *Orchestrator) ListInstances() []*body.Body {
-	return o.bodies.List()
-}
-
+func (o *Orchestrator) ListInstances() []*body.Body { return o.bodies.List() }
 func (o *Orchestrator) GetInstance(id string) (*body.Body, bool) {
 	return o.bodies.Get(id)
 }
@@ -107,6 +121,8 @@ func (o *Orchestrator) CreateInstance(ctx context.Context, personaID string, sim
 		profileID = id
 		break
 	}
+	// If persona has a proxy, pass host into redroid config in a later enhancement;
+	// for now Start still uses manager defaults.
 	b, err := o.bodies.Start(ctx, personaID, profileID, simulated)
 	if err != nil {
 		return nil, err

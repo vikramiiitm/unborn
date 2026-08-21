@@ -5,50 +5,43 @@ Last updated: 2026-08-22
 ## Current Phase
 **Phase 1 – Sellable MVP Foundation** (in progress)
 
-## Positioning
-Farming with souls · meaningful population scale · sustainable believable attention
-
----
-
 ## What Is Built
 
-- [x] Docs (strategy, philosophy, GTM, UX, ADRs)
-- [x] PostgreSQL Persona Store
-- [x] Redroid Body Manager (docker + simulated fallback)
-- [x] Behavior Engine skeleton + **background loop**
-- [x] Vitality Tracker skeleton
-- [x] **Minimal dashboard** at `GET /` and `/dashboard`
-- [x] **Installer script** `installer/install.sh`
-- [x] Compose: docker.sock + redroid data volume
-- [ ] Playbooks engine
+- [x] Docs + positioning (farming with souls)
+- [x] PostgreSQL Personas + **PostgreSQL Vitality**
+- [x] Redroid body manager + simulated fallback
+- [x] Behavior engine + background loop
+- [x] Minimal dashboard (`/`)
+- [x] Installer script
+- [x] **Playbooks** (warmup / presence / campaign seeds + assign API)
+- [x] **Per-persona proxy** API
+- [ ] Wire proxy into Redroid `docker run` boot args per start
 - [ ] License service
-- [ ] Rich identity injection / per-persona proxy API
+- [ ] Playbook execution (not only assign)
+- [ ] ADB health checks
 
 ---
 
-## Run
+## New API
 
-```bash
-# On Ubuntu host (once)
-sudo bash installer/install.sh
+```
+GET  /v1/playbooks
+POST /v1/playbooks
+POST /v1/playbooks/{id}/assign   { "persona_id": "..." }
+GET  /v1/playbook-assignments?persona_id=
 
-cd docker && docker compose up --build -d
-
-# Dashboard
-open http://localhost:8080/
-
-# API
-curl -X POST http://localhost:8080/v1/personas -H 'Content-Type: application/json' \
-  -d '{"display_name":"Ava","location":"Berlin","timezone":"Europe/Berlin"}'
+PUT  /v1/personas/{id}/proxy     { "host", "port", "type", "username", "password" }
+GET  /v1/personas/{id}/proxy
+DELETE /v1/personas/{id}/proxy
+GET  /v1/proxies
 ```
 
-Behavior loop logs next actions for personas with running bodies every 60s (configurable).
+Vitality now survives restarts when Postgres is up.
 
 ---
 
 ## Next
-1. Playbook / automation skeleton
-2. Per-persona proxy assignment
-3. Persist vitality in Postgres
-4. License service
-5. Deeper Redroid health (ADB ping)
+1. Apply persona proxy on real Redroid start
+2. Execute playbooks in behavior loop
+3. License service
+4. ADB health

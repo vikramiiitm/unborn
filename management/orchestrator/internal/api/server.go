@@ -40,6 +40,14 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("GET /v1/personas/{id}/next-action", s.handleNextAction)
 	s.mux.HandleFunc("GET /v1/personas/{id}/vitality", s.handleGetVitality)
 	s.mux.HandleFunc("GET /v1/vitality", s.handleListVitality)
+	s.mux.HandleFunc("GET /v1/playbooks", s.handleListPlaybooks)
+	s.mux.HandleFunc("POST /v1/playbooks", s.handleCreatePlaybook)
+	s.mux.HandleFunc("POST /v1/playbooks/{id}/assign", s.handleAssignPlaybook)
+	s.mux.HandleFunc("GET /v1/playbook-assignments", s.handleListAssignments)
+	s.mux.HandleFunc("GET /v1/proxies", s.handleListProxies)
+	s.mux.HandleFunc("PUT /v1/personas/{id}/proxy", s.handleSetProxy)
+	s.mux.HandleFunc("GET /v1/personas/{id}/proxy", s.handleGetProxy)
+	s.mux.HandleFunc("DELETE /v1/personas/{id}/proxy", s.handleDeleteProxy)
 }
 
 func (s *Server) ListenAndServe(addr string) error {
@@ -191,14 +199,88 @@ func (s *Server) handleNextAction(w http.ResponseWriter, r *http.Request) {
 func (s *Server) handleGetVitality(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")
 	score := s.orch.Vitality().Get(id)
-	writeJSON(w, http.StatusOK, map[string]any{
-		"score": score,
-		"level": vitality.Level(score.Value),
-	})
+	writeJSON(w, http.StatusOK, map[string]any{"score": score, "level": vitality.Level(score.Value)})
 }
 
 func (s *Server) handleListVitality(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, s.orch.Vitality().List())
+}
+
+func (s *Server) handleListPlaybooks(w http.ResponseWriter, r *http.Request) {
+	writeJSON(w, http.StatusOK, s.orch.Playbooks().List())
+}
+
+func (s *Server) handleCreatePlaybook(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		Name        string            `json:"name"`
+		Description string            `json:"description"`
+		Kind        string            `json:"kind"`
+		Params      map[string]string `json:"params"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.Name == "" {
+		http.Error(w, "name required", http.StatusBadRequest)
+		return
+	}
+	p := s.orch.Playbooks().Create(req.Name, req.Description, req.Kind, req.Params)
+	writeJSON(w, http.StatusCreated, p)
+}
+
+func (s *Server) handleAssignPlaybook(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		PersonaID string `json:"persona_id"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.PersonaID == "" {
+		http.Error(w, "persona_id required", http.StatusBadRequest)
+		return
+	}
+	a, err := s.orch.Playbooks().Assign(r.PathValue("id"), req.PersonaID)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusNotFound)
+		return
+	}
+	writeJSON(w, http.StatusCreated, a)
+}
+
+func (s *Server) handleListAssignments(w http.ResponseWriter, r *http.Request) {
+	personaID := r.URL.Query().Get("persona_id")
+	writeJSON(w, http.StatusOK, s.orch.Playbooks().ListAssignments(personaID))
+}
+
+func (s *Server) handleListProxies(w http.ResponseWriter, r *http.Request) {
+	writeJSON(w, http.StatusOK, s.orch.Proxies().List())
+}
+
+func (s *Server) handleSetProxy(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		Host     string `json:"host"`
+		Port     int    `json:"port"`
+		Type     string `json:"type"`
+		Username string `json:"username"`
+		Password string `json:"password"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.Host == "" || req.Port == 0 {
+		http.Error(w, "host and port required", http.StatusBadRequest)
+		return
+	}
+	a := s.orch.Proxies().Set(r.PathValue("id"), req.Host, req.Port, req.Type, req.Username, req.Password)
+	writeJSON(w, http.StatusOK, a)
+}
+
+func (s *Server) handleGetProxy(w http.ResponseWriter, r *http.Request) {
+	a, ok := s.orch.Proxies().Get(r.PathValue("id"))
+	if !ok {
+		http.Error(w, "proxy not set", http.StatusNotFound)
+		return
+	}
+	writeJSON(w, http.StatusOK, a)
+}
+
+func (s *Server) handleDeleteProxy(w http.ResponseWriter, r *http.Request) {
+	if !s.orch.Proxies().Delete(r.PathValue("id")) {
+		http.Error(w, "proxy not set", http.StatusNotFound)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
 }
 
 func writeJSON(w http.ResponseWriter, status int, v any) {
