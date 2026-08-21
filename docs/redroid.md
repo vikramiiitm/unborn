@@ -14,7 +14,16 @@ sudo bash installer/install.sh
 sudo apt install linux-modules-extra-$(uname -r) android-tools-adb
 sudo modprobe binder_linux devices="binder,hwbinder,vndbinder"
 sudo modprobe ashmem_linux   # if available
+
+# Modern Linux kernels (Kernel 6.x/7.x on Ubuntu 24.04+) require binderfs:
+sudo mkdir -p /dev/binderfs
+sudo mount -t binder binder /dev/binderfs
+sudo ln -sf /dev/binderfs/binder /dev/binder
+sudo ln -sf /dev/binderfs/hwbinder /dev/hwbinder
+sudo ln -sf /dev/binderfs/vndbinder /dev/vndbinder
 ```
+
+For detailed kernel troubleshooting and port conflict handling, see **[troubleshooting.md](troubleshooting.md)**.
 
 Orchestrator needs Docker socket (mounted in `docker/docker-compose.yml`).
 

@@ -3,6 +3,7 @@ package body
 import (
 	"context"
 	"fmt"
+	"net"
 	"os"
 	"os/exec"
 	"strconv"
@@ -86,9 +87,44 @@ func dockerAvailable() bool {
 	return exec.Command("docker", "version", "--format", "{{.Server.Version}}").Run() == nil
 }
 
+func isHostPortAvailable(port int) bool {
+	ln, err := net.Listen("tcp", fmt.Sprintf(":%d", port))
+	if err != nil {
+		return false
+	}
+	_ = ln.Close()
+	return true
+}
+
+func getUsedHostPorts() map[int]bool {
+	used := make(map[int]bool)
+	out, err := exec.Command("docker", "ps", "-a", "--format", "{{.Ports}}").CombinedOutput()
+	if err != nil {
+		return used
+	}
+	lines := strings.Split(string(out), "\n")
+	for _, line := range lines {
+		parts := strings.Split(line, ",")
+		for _, part := range parts {
+			part = strings.TrimSpace(part)
+			if idx := strings.Index(part, "->"); idx != -1 {
+				hostPart := part[:idx]
+				if colonIdx := strings.LastIndex(hostPart, ":"); colonIdx != -1 {
+					portStr := hostPart[colonIdx+1:]
+					if p, err := strconv.Atoi(portStr); err == nil {
+						used[p] = true
+					}
+				}
+			}
+		}
+	}
+	return used
+}
+
 func (m *RedroidManager) allocatePort() (int, error) {
+	usedHostPorts := getUsedHostPorts()
 	for p := m.cfg.BaseADBPort; p < m.cfg.BaseADBPort+m.max*2; p++ {
-		if _, used := m.ports[p]; !used {
+		if _, inMem := m.ports[p]; !inMem && !usedHostPorts[p] && isHostPortAvailable(p) {
 			return p, nil
 		}
 	}
@@ -159,6 +195,7 @@ func (m *RedroidManager) Start(ctx context.Context, opts StartOpts) (*Body, erro
 	cmd := exec.CommandContext(ctx, "docker", args...)
 	out, err := cmd.CombinedOutput()
 	if err != nil {
+		_ = exec.Command("docker", "rm", "-f", name).Run()
 		return nil, fmt.Errorf("docker run failed: %w (%s)", err, strings.TrimSpace(string(out)))
 	}
 	containerID := strings.TrimSpace(string(out))

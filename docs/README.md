@@ -40,6 +40,7 @@ Single map of project docs.
 | [Architecture](architecture.md) | Planes overview |
 | [Persona Model](persona-model.md) | Persona object |
 | [Behavior Engine](behavior-engine.md) | Behavior design |
+| [Troubleshooting](troubleshooting.md) | Redroid kernel setup, binderfs, port fixes |
 | [Roadmap](roadmap.md) | Phases |
 | [Tracking](tracking.md) | How we track work |
 | [ADRs](adr/) | Decision records |

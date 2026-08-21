@@ -23,6 +23,17 @@ if ! grep -q binder_linux /etc/modules 2>/dev/null; then
   echo "binder_linux devices=binder,hwbinder,vndbinder" >> /etc/modules || true
 fi
 
+# Modern Linux kernels (Kernel 6.x / 7.x on Ubuntu 24.04+) require mounting binderfs
+mkdir -p /dev/binderfs
+mount -t binder binder /dev/binderfs 2>/dev/null || true
+ln -sf /dev/binderfs/binder /dev/binder 2>/dev/null || true
+ln -sf /dev/binderfs/hwbinder /dev/hwbinder 2>/dev/null || true
+ln -sf /dev/binderfs/vndbinder /dev/vndbinder 2>/dev/null || true
+
+if ! grep -q "/dev/binderfs" /etc/fstab 2>/dev/null; then
+  echo "binder /dev/binderfs binder defaults 0 0" >> /etc/fstab || true
+fi
+
 echo "[3/5] Docker..."
 if ! command -v docker >/dev/null 2>&1; then
   curl -fsSL https://get.docker.com | sh
