@@ -293,7 +293,7 @@ func CheckADB(ctx context.Context, hostPort int) bool {
 	if hostPort <= 0 {
 		return false
 	}
-	addr := fmt.Sprintf("127.0.0.1:%d", hostPort)
+	addr := ADBAddr(hostPort)
 	_ = exec.CommandContext(ctx, "adb", "connect", addr).Run()
 	out, err := exec.CommandContext(ctx, "adb", "-s", addr, "get-state").CombinedOutput()
 	if err != nil {

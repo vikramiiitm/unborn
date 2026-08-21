@@ -82,23 +82,35 @@ func (s *Server) handleListInstances(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, s.orch.ListInstances())
 }
 
+// resolveSimulated: body.simulated wins; ?real=true forces real; default simulated=true for safety.
+func resolveSimulated(reqSimulated bool, qReal, qSim string) bool {
+	if qReal == "true" {
+		return false
+	}
+	if qSim == "true" {
+		return true
+	}
+	// explicit false in JSON means real intent
+	if !reqSimulated {
+		return false
+	}
+	return true
+}
+
 func (s *Server) handleCreateInstance(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		PersonaID string `json:"persona_id"`
-		Simulated bool   `json:"simulated"`
+		Simulated *bool  `json:"simulated"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.PersonaID == "" {
 		http.Error(w, "persona_id is required", http.StatusBadRequest)
 		return
 	}
-	simulated := req.Simulated
-	if r.URL.Query().Get("real") == "true" {
-		simulated = false
-	} else if r.URL.Query().Get("simulated") == "true" {
-		simulated = true
-	} else if !req.Simulated && r.URL.Query().Get("real") != "true" && r.URL.Query().Get("simulated") != "false" {
-		simulated = true
+	reqSim := true
+	if req.Simulated != nil {
+		reqSim = *req.Simulated
 	}
+	simulated := resolveSimulated(reqSim, r.URL.Query().Get("real"), r.URL.Query().Get("simulated"))
 	inst, err := s.orch.CreateInstance(r.Context(), req.PersonaID, simulated)
 	if err != nil {
 		switch err {
@@ -179,10 +191,6 @@ func (s *Server) handleInstanceLogs(w http.ResponseWriter, r *http.Request) {
 func (s *Server) handleScreenshot(w http.ResponseWriter, r *http.Request) {
 	png, err := s.orch.Screenshot(r.Context(), r.PathValue("id"))
 	if err != nil {
-		if err == orchestrator.ErrSimulatedNoScreen {
-			http.Error(w, err.Error(), http.StatusBadRequest)
-			return
-		}
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}

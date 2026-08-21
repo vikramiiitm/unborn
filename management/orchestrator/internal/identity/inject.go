@@ -6,17 +6,16 @@ import (
 	"os/exec"
 	"strings"
 	"time"
+
+	"github.com/vikramiiitm/unborn/management/orchestrator/internal/body"
 )
 
-// InjectViaADB pushes basic identity settings into a running Redroid over ADB.
-// Best-effort: fails soft if adb missing or device not ready.
 func InjectViaADB(ctx context.Context, adbPort int, p *DeviceProfile) error {
 	if p == nil || adbPort <= 0 {
 		return fmt.Errorf("invalid profile or port")
 	}
-	addr := fmt.Sprintf("127.0.0.1:%d", adbPort)
+	addr := body.ADBAddr(adbPort)
 
-	// Wait briefly for device
 	deadline := time.Now().Add(45 * time.Second)
 	for time.Now().Before(deadline) {
 		_ = exec.CommandContext(ctx, "adb", "connect", addr).Run()

@@ -1,7 +1,7 @@
 version: "3.9"
 
 # Unborn – Phase 1
-# Management Plane. Redroid bodies are started dynamically by the Orchestrator.
+# Management Plane. Redroid bodies are started on the host by the Orchestrator.
 
 services:
   postgres:
@@ -41,12 +41,14 @@ services:
       MAX_INSTANCES: "10"
       BEHAVIOR_LOOP: "true"
       BEHAVIOR_INTERVAL_SEC: "60"
+      # Redroid ADB is published on the host; reach it from this container:
+      ADB_HOST: host.docker.internal
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     ports:
       - "8080:8080"
     volumes:
-      # Allow Orchestrator to start/stop Redroid containers on the host
       - /var/run/docker.sock:/var/run/docker.sock
-      # Shared data root for Redroid /data mounts (host path)
       - unborn_redroid_data:/var/lib/unborn/redroid-data
     depends_on:
       postgres:
