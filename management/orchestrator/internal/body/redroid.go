@@ -22,8 +22,8 @@ type RedroidConfig struct {
 	DPI              int
 	DefaultProxyHost string
 	DefaultProxyPort int
-	MemoryLimit      string // e.g. 3072m
-	CPULimit         string // e.g. 2.0
+	MemoryLimit      string
+	CPULimit         string
 }
 
 func DefaultRedroidConfig() RedroidConfig {
@@ -115,7 +115,6 @@ func (m *RedroidManager) Start(ctx context.Context, opts StartOpts) (*Body, erro
 	bodyID := uuid.New().String()
 	name := "unborn-" + bodyID[:8]
 	dataDir := fmt.Sprintf("%s/%s", m.cfg.DataRoot, bodyID)
-
 	_ = os.MkdirAll(dataDir, 0o755)
 
 	args := []string{
@@ -151,8 +150,6 @@ func (m *RedroidManager) Start(ctx context.Context, opts StartOpts) (*Body, erro
 			fmt.Sprintf("androidboot.redroid_net_proxy_port=%d", proxyPort),
 		)
 	}
-
-	// Placeholder for future identity props from DeviceProfile
 	for k, v := range opts.ExtraBootProps {
 		if k != "" && v != "" {
 			args = append(args, fmt.Sprintf("%s=%s", k, v))
@@ -198,9 +195,9 @@ func (m *RedroidManager) Stop(ctx context.Context, bodyID string) error {
 	if b.Simulated || b.ContainerID == "" {
 		return m.sim.Stop(ctx, bodyID)
 	}
-	ref := b.ContainerID
-	if b.ContainerName != "" {
-		ref = b.ContainerName
+	ref := b.ContainerName
+	if ref == "" {
+		ref = b.ContainerID
 	}
 	cmd := exec.CommandContext(ctx, "docker", "rm", "-f", ref)
 	if out, err := cmd.CombinedOutput(); err != nil {
@@ -219,7 +216,46 @@ func (m *RedroidManager) Stop(ctx context.Context, bodyID string) error {
 	return nil
 }
 
-// WipeData removes the on-disk /data directory for a stopped body (optional).
+func (m *RedroidManager) Restart(ctx context.Context, bodyID string) error {
+	m.mu.Lock()
+	b, ok := m.bodies[bodyID]
+	m.mu.Unlock()
+	if !ok || b.Simulated {
+		return fmt.Errorf("restart only for real bodies")
+	}
+	ref := b.ContainerName
+	if ref == "" {
+		ref = b.ContainerID
+	}
+	out, err := exec.CommandContext(ctx, "docker", "restart", ref).CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("docker restart: %w (%s)", err, strings.TrimSpace(string(out)))
+	}
+	m.mu.Lock()
+	b.State = StateRunning
+	b.UpdatedAt = time.Now().UTC()
+	m.mu.Unlock()
+	return nil
+}
+
+func (m *RedroidManager) Logs(ctx context.Context, bodyID string, tail int) (string, error) {
+	m.mu.Lock()
+	b, ok := m.bodies[bodyID]
+	m.mu.Unlock()
+	if !ok || b.Simulated {
+		return "", fmt.Errorf("logs only for real bodies")
+	}
+	if tail <= 0 {
+		tail = 100
+	}
+	ref := b.ContainerName
+	if ref == "" {
+		ref = b.ContainerID
+	}
+	out, err := exec.CommandContext(ctx, "docker", "logs", "--tail", strconv.Itoa(tail), ref).CombinedOutput()
+	return string(out), err
+}
+
 func (m *RedroidManager) WipeData(bodyID string) error {
 	m.mu.Lock()
 	b, ok := m.bodies[bodyID]
@@ -253,20 +289,6 @@ func (m *RedroidManager) List() []*Body {
 	return append(out, m.sim.List()...)
 }
 
-func (m *RedroidManager) ADBPort(bodyID string) (int, bool) {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	if b, ok := m.bodies[bodyID]; ok && b.ADBPort > 0 {
-		return b.ADBPort, true
-	}
-	for p, id := range m.ports {
-		if id == bodyID {
-			return p, true
-		}
-	}
-	return 0, false
-}
-
 func CheckADB(ctx context.Context, hostPort int) bool {
 	if hostPort <= 0 {
 		return false
@@ -280,7 +302,6 @@ func CheckADB(ctx context.Context, hostPort int) bool {
 	return strings.Contains(string(out), "device")
 }
 
-// ContainerRunning reports whether docker sees the container.
 func ContainerRunning(ctx context.Context, nameOrID string) bool {
 	if nameOrID == "" {
 		return false

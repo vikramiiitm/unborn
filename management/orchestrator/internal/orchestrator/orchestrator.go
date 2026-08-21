@@ -160,8 +160,6 @@ func (o *Orchestrator) CreateInstance(ctx context.Context, personaID string, sim
 		return nil, err
 	}
 	o.vitality.Ensure(personaID)
-
-	// Async identity injection for real bodies
 	if !b.Simulated && profile != nil && b.ADBPort > 0 {
 		go func(port int, prof *identity.DeviceProfile, bodyID string) {
 			ctx2, cancel := context.WithTimeout(context.Background(), 90*time.Second)
@@ -178,6 +176,20 @@ func (o *Orchestrator) CreateInstance(ctx context.Context, personaID string, sim
 
 func (o *Orchestrator) StopInstance(ctx context.Context, id string) error {
 	return o.bodies.Stop(ctx, id)
+}
+
+func (o *Orchestrator) RestartInstance(ctx context.Context, id string) error {
+	if o.redroid == nil {
+		return ErrInstanceNotFound
+	}
+	return o.redroid.Restart(ctx, id)
+}
+
+func (o *Orchestrator) InstanceLogs(ctx context.Context, id string, tail int) (string, error) {
+	if o.redroid == nil {
+		return "", ErrInstanceNotFound
+	}
+	return o.redroid.Logs(ctx, id, tail)
 }
 
 func (o *Orchestrator) WipeInstanceData(id string) error {
