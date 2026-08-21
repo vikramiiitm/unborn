@@ -2,19 +2,21 @@
 
 Last updated: 2026-08-22
 
-## Focus: Redroid (Execution Plane)
+## Redroid + UI
 
-### Redroid now
-- Real `docker run` with memory/CPU limits, data dir, ADB port, proxy boot props
-- Env: `REDROID_IMAGE`, `REDROID_DATA_ROOT`, `REDROID_MEMORY`, `REDROID_CPUS`, `REDROID_BASE_ADB_PORT`
-- Health: container inspect + ADB
-- `POST /v1/instances/{id}/wipe` after stop
-- Docs: `docs/redroid.md`
+### Redroid
+- docker run, limits, proxy, data, wipe, health
+- **ADB identity inject** (auto on real start + `POST /v1/instances/{id}/inject-identity`)
 
-### Still on Redroid track
-1. Real device identity injection (build.prop / settings via adb)
-2. Network namespace isolation
-3. Frida / input injection path
-4. Snapshot API
+### Dashboard (`/`)
+Tabs wired to live APIs:
+- **Population** — personas, vitality, Sim/Real body start
+- **Bodies** — list, health, inject identity, stop
+- **Playbooks** — list + assignments
+- **Proxies** — list
+- Header — license status + max instances
 
-Personas stay as-is until Redroid path is solid.
+### Next Redroid
+- Stronger fingerprint
+- Network isolation
+- Frida / input

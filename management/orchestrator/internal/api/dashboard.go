@@ -4,139 +4,142 @@ import (
 	"net/http"
 )
 
+// Dashboard covers personas, bodies, playbooks, proxies, license, start/stop/health/inject.
 const dashboardHTML = `<!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Unborn — Population</title>
-  <style>
-    :root { --bg:#0f1115; --card:#1a1d24; --text:#e8eaed; --muted:#9aa0a6; --accent:#7c9cff; --good:#3dd68c; --warn:#f5a524; --bad:#f76e6e; }
-    * { box-sizing: border-box; }
-    body { margin:0; font-family: ui-sans-serif, system-ui, sans-serif; background:var(--bg); color:var(--text); }
-    header { padding:1.25rem 1.5rem; border-bottom:1px solid #2a2f3a; display:flex; align-items:center; justify-content:space-between; gap:1rem; flex-wrap:wrap; }
-    header h1 { margin:0; font-size:1.25rem; font-weight:600; letter-spacing:-0.02em; }
-    header span { color:var(--muted); font-size:0.875rem; }
-    main { padding:1.5rem; max-width:1100px; margin:0 auto; }
-    .strip { display:grid; grid-template-columns:repeat(auto-fit,minmax(140px,1fr)); gap:0.75rem; margin-bottom:1.5rem; }
-    .stat { background:var(--card); border-radius:10px; padding:1rem; }
-    .stat .label { color:var(--muted); font-size:0.75rem; text-transform:uppercase; letter-spacing:0.04em; }
-    .stat .value { font-size:1.5rem; font-weight:600; margin-top:0.25rem; }
-    table { width:100%; border-collapse:collapse; background:var(--card); border-radius:10px; overflow:hidden; }
-    th, td { text-align:left; padding:0.75rem 1rem; border-bottom:1px solid #2a2f3a; font-size:0.9rem; }
-    th { color:var(--muted); font-weight:500; font-size:0.75rem; text-transform:uppercase; letter-spacing:0.04em; }
-    tr:last-child td { border-bottom:none; }
-    .pill { display:inline-block; padding:0.15rem 0.5rem; border-radius:999px; font-size:0.75rem; font-weight:500; }
-    .thriving { background:#1a3d2e; color:var(--good); }
-    .stable { background:#1e2a3d; color:var(--accent); }
-    .under_pressure { background:#3d2e1a; color:var(--warn); }
-    .critical, .collapsed { background:#3d1a1a; color:var(--bad); }
-    .actions { margin-bottom:1.5rem; display:flex; gap:0.5rem; flex-wrap:wrap; }
-    button { background:var(--accent); color:#0f1115; border:none; border-radius:8px; padding:0.5rem 0.9rem; font-weight:600; cursor:pointer; font-size:0.875rem; }
-    button.secondary { background:#2a2f3a; color:var(--text); }
-    button:disabled { opacity:0.5; cursor:not-allowed; }
-    .empty { color:var(--muted); padding:2rem; text-align:center; }
-    code { font-size:0.8rem; color:var(--muted); }
-  </style>
+<meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Unborn</title>
+<style>
+:root{--bg:#0f1115;--card:#1a1d24;--text:#e8eaed;--muted:#9aa0a6;--accent:#7c9cff;--good:#3dd68c;--warn:#f5a524;--bad:#f76e6e;--border:#2a2f3a}
+*{box-sizing:border-box}body{margin:0;font-family:system-ui,sans-serif;background:var(--bg);color:var(--text)}
+header{padding:1rem 1.5rem;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;flex-wrap:wrap;gap:.75rem;align-items:center}
+h1{margin:0;font-size:1.2rem}.sub{color:var(--muted);font-size:.85rem}
+nav{display:flex;gap:.35rem;flex-wrap:wrap}
+nav button{background:transparent;color:var(--muted);border:1px solid transparent;border-radius:8px;padding:.4rem .75rem;cursor:pointer;font-size:.85rem}
+nav button.active,nav button:hover{color:var(--text);background:var(--card);border-color:var(--border)}
+main{padding:1.25rem 1.5rem;max-width:1200px;margin:0 auto}
+.panel{display:none}.panel.active{display:block}
+.strip{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:.75rem;margin-bottom:1.25rem}
+.stat{background:var(--card);border-radius:10px;padding:.9rem}
+.stat .label{color:var(--muted);font-size:.7rem;text-transform:uppercase}
+.stat .value{font-size:1.35rem;font-weight:600;margin-top:.2rem}
+.actions{margin-bottom:1rem;display:flex;gap:.5rem;flex-wrap:wrap;align-items:center}
+.btn{background:var(--accent);color:#0f1115;border:none;border-radius:8px;padding:.45rem .85rem;font-weight:600;cursor:pointer;font-size:.85rem}
+.btn.secondary{background:#2a2f3a;color:var(--text)}.btn.danger{background:#5c2a2a;color:var(--bad)}
+table{width:100%;border-collapse:collapse;background:var(--card);border-radius:10px;overflow:hidden;margin-bottom:1.5rem}
+th,td{text-align:left;padding:.65rem .85rem;border-bottom:1px solid var(--border);font-size:.85rem}
+th{color:var(--muted);font-size:.7rem;text-transform:uppercase}
+.pill{display:inline-block;padding:.12rem .45rem;border-radius:999px;font-size:.72rem}
+.thriving,.running{background:#1a3d2e;color:var(--good)}.stable{background:#1e2a3d;color:var(--accent)}
+.under_pressure{background:#3d2e1a;color:var(--warn)}.critical,.collapsed{background:#3d1a1a;color:var(--bad)}
+.stopped{background:#2a2f3a;color:var(--muted)}.empty{color:var(--muted);padding:1.5rem;text-align:center}
+code{font-size:.78rem;color:var(--muted)}.row-actions{display:flex;gap:.35rem;flex-wrap:wrap}
+.msg{color:var(--muted);font-size:.8rem}h2{font-size:1rem;margin:0 0 .75rem}
+</style>
 </head>
 <body>
-  <header>
-    <div>
-      <h1>Unborn</h1>
-      <span>Population overview · farming with souls</span>
-    </div>
-    <span id="clock"></span>
-  </header>
-  <main>
-    <div class="strip" id="strip">
-      <div class="stat"><div class="label">Personas</div><div class="value" id="s-personas">—</div></div>
-      <div class="stat"><div class="label">Bodies</div><div class="value" id="s-bodies">—</div></div>
-      <div class="stat"><div class="label">Thriving</div><div class="value" id="s-thriving">—</div></div>
-      <div class="stat"><div class="label">Pressure+</div><div class="value" id="s-pressure">—</div></div>
-    </div>
-    <div class="actions">
-      <button type="button" id="btn-refresh">Refresh</button>
-      <button type="button" class="secondary" id="btn-create">Create sample persona</button>
-    </div>
-    <table>
-      <thead>
-        <tr>
-          <th>Name</th>
-          <th>Location</th>
-          <th>Engagement</th>
-          <th>Vitality</th>
-          <th>Level</th>
-          <th>ID</th>
-        </tr>
-      </thead>
-      <tbody id="rows">
-        <tr><td colspan="6" class="empty">Loading…</td></tr>
-      </tbody>
-    </table>
-  </main>
-  <script>
-    const $ = (id) => document.getElementById(id);
-    function levelClass(level) {
-      return level || 'stable';
-    }
-    async function load() {
-      const [personas, vitality, instances] = await Promise.all([
-        fetch('/v1/personas').then(r => r.json()),
-        fetch('/v1/vitality').then(r => r.json()),
-        fetch('/v1/instances').then(r => r.json()),
-      ]);
-      const vmap = {};
-      (vitality || []).forEach(v => { vmap[v.persona_id] = v; });
-      let thriving = 0, pressure = 0;
-      (vitality || []).forEach(v => {
-        const lv = v.value >= 80 ? 'thriving' : v.value >= 55 ? 'stable' : v.value >= 30 ? 'under_pressure' : v.value >= 10 ? 'critical' : 'collapsed';
-        if (lv === 'thriving') thriving++;
-        if (['under_pressure','critical','collapsed'].includes(lv)) pressure++;
-      });
-      $('s-personas').textContent = (personas || []).length;
-      $('s-bodies').textContent = (instances || []).length;
-      $('s-thriving').textContent = thriving;
-      $('s-pressure').textContent = pressure;
-      const tbody = $('rows');
-      if (!personas || !personas.length) {
-        tbody.innerHTML = '<tr><td colspan="6" class="empty">No personas yet. Create one to begin.</td></tr>';
-        return;
-      }
-      tbody.innerHTML = personas.map(p => {
-        const v = vmap[p.id];
-        const val = v ? v.value.toFixed(1) : '75.0';
-        const lv = v ? (v.value >= 80 ? 'thriving' : v.value >= 55 ? 'stable' : v.value >= 30 ? 'under_pressure' : v.value >= 10 ? 'critical' : 'collapsed') : 'stable';
-        return '<tr>' +
-          '<td>' + (p.display_name || '—') + '</td>' +
-          '<td>' + (p.demographics && p.demographics.location || '—') + '</td>' +
-          '<td>' + (p.engagement && p.engagement.type || '—') + '</td>' +
-          '<td>' + val + '</td>' +
-          '<td><span class="pill ' + levelClass(lv) + '">' + lv + '</span></td>' +
-          '<td><code>' + p.id.slice(0,8) + '…</code></td>' +
-          '</tr>';
-      }).join('');
-    }
-    $('btn-refresh').onclick = () => load();
-    $('btn-create').onclick = async () => {
-      $('btn-create').disabled = true;
-      await fetch('/v1/personas', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          display_name: 'Persona ' + Math.floor(Math.random()*1000),
-          location: 'Berlin',
-          timezone: 'Europe/Berlin',
-          age_min: 25, age_max: 30,
-          engagement: 'thoughtful_commenter'
-        })
-      });
-      $('btn-create').disabled = false;
-      load();
-    };
-    setInterval(() => { $('clock').textContent = new Date().toLocaleString(); }, 1000);
-    load();
-    setInterval(load, 15000);
-  </script>
+<header>
+<div><h1>Unborn</h1><div class="sub">Farming with souls · <span id="lic-line">license…</span></div></div>
+<nav>
+<button type="button" class="active" data-p="pop">Population</button>
+<button type="button" data-p="bodies">Bodies</button>
+<button type="button" data-p="pb">Playbooks</button>
+<button type="button" data-p="px">Proxies</button>
+</nav>
+</header>
+<main>
+<div class="strip">
+<div class="stat"><div class="label">Personas</div><div class="value" id="s-p">—</div></div>
+<div class="stat"><div class="label">Bodies</div><div class="value" id="s-b">—</div></div>
+<div class="stat"><div class="label">Thriving</div><div class="value" id="s-t">—</div></div>
+<div class="stat"><div class="label">License max</div><div class="value" id="s-l">—</div></div>
+</div>
+<section id="panel-pop" class="panel active">
+<div class="actions"><button type="button" class="btn" id="ref">Refresh</button>
+<button type="button" class="btn secondary" id="mk">+ Persona</button><span class="msg" id="msg"></span></div>
+<table><thead><tr><th>Name</th><th>Location</th><th>Engagement</th><th>Vitality</th><th>Body</th><th></th></tr></thead>
+<tbody id="tp"></tbody></table>
+</section>
+<section id="panel-bodies" class="panel">
+<h2>Bodies (Redroid / sim)</h2>
+<table><thead><tr><th>ID</th><th>Persona</th><th>State</th><th>Sim</th><th>ADB</th><th>Container</th><th></th></tr></thead>
+<tbody id="tb"></tbody></table>
+</section>
+<section id="panel-pb" class="panel">
+<h2>Playbooks</h2>
+<table><thead><tr><th>Name</th><th>Kind</th><th>Description</th></tr></thead><tbody id="tpb"></tbody></table>
+<h2>Assignments</h2>
+<table><thead><tr><th>Playbook</th><th>Persona</th><th>Active</th></tr></thead><tbody id="tas"></tbody></table>
+</section>
+<section id="panel-px" class="panel">
+<h2>Proxies</h2>
+<table><thead><tr><th>Persona</th><th>Host</th><th>Port</th><th>Type</th></tr></thead><tbody id="tpx"></tbody></table>
+</section>
+</main>
+<script>
+const $=id=>document.getElementById(id);
+let S={personas:[],instances:[],vitality:[],playbooks:[],assignments:[],proxies:[],license:null};
+document.querySelectorAll('nav button').forEach(b=>{
+b.onclick=()=>{
+document.querySelectorAll('nav button').forEach(x=>x.classList.remove('active'));
+document.querySelectorAll('.panel').forEach(x=>x.classList.remove('active'));
+b.classList.add('active');$('panel-'+b.dataset.p).classList.add('active');
+};
+});
+function lv(v){return v>=80?'thriving':v>=55?'stable':v>=30?'under_pressure':v>=10?'critical':'collapsed'}
+async function load(){
+const [personas,vitality,instances,license,playbooks,assignments,proxies]=await Promise.all([
+fetch('/v1/personas').then(r=>r.json()),fetch('/v1/vitality').then(r=>r.json()),
+fetch('/v1/instances').then(r=>r.json()),fetch('/v1/license').then(r=>r.json()),
+fetch('/v1/playbooks').then(r=>r.json()),fetch('/v1/playbook-assignments').then(r=>r.json()),
+fetch('/v1/proxies').then(r=>r.json())]);
+S={personas:personas||[],instances:instances||[],vitality:vitality||[],playbooks:playbooks||[],assignments:assignments||[],proxies:proxies||[],license};
+render();
+}
+function render(){
+const vm={};S.vitality.forEach(v=>vm[v.persona_id]=v);
+const bm={};S.instances.forEach(i=>bm[i.persona_id]=i);
+let thr=0;S.vitality.forEach(v=>{if(lv(v.value)==='thriving')thr++});
+$('s-p').textContent=S.personas.length;$('s-b').textContent=S.instances.length;$('s-t').textContent=thr;
+$('s-l').textContent=S.license?S.license.max_instances:'—';
+if(S.license)$('lic-line').textContent=(S.license.valid?'valid':'invalid')+' · '+(S.license.tier||'')+' · max '+S.license.max_instances;
+$('tp').innerHTML=S.personas.length?S.personas.map(p=>{
+const v=vm[p.id],val=v?v.value.toFixed(1):'75.0',l=v?lv(v.value):'stable',b=bm[p.id];
+const bl=b?(b.simulated?'sim':'real')+' '+(b.state||''):'—';
+return '<tr><td>'+(p.display_name||'—')+'</td><td>'+(p.demographics&&p.demographics.location||'—')+'</td><td>'+(p.engagement&&p.engagement.type||'—')+
+'</td><td><span class="pill '+l+'">'+val+' '+l+'</span></td><td><code>'+bl+'</code></td><td class="row-actions">'+
+'<button type="button" class="btn secondary" data-s="'+p.id+'">Sim</button>'+
+'<button type="button" class="btn secondary" data-r="'+p.id+'">Real</button></td></tr>';
+}).join(''):'<tr><td colspan="6" class="empty">No personas</td></tr>';
+$('tp').querySelectorAll('[data-s]').forEach(b=>b.onclick=()=>start(b.dataset.s,true));
+$('tp').querySelectorAll('[data-r]').forEach(b=>b.onclick=()=>start(b.dataset.r,false));
+$('tb').innerHTML=S.instances.length?S.instances.map(i=>{
+const st=i.state==='running'?'running':'stopped';
+return '<tr><td><code>'+(i.id||'').slice(0,8)+'…</code></td><td><code>'+(i.persona_id||'').slice(0,8)+'…</code></td>'+
+'<td><span class="pill '+st+'">'+(i.state||'')+'</span></td><td>'+(i.simulated?'yes':'no')+'</td><td>'+(i.adb_port||'—')+'</td>'+
+'<td><code>'+(i.container_name||i.container_id||'—')+'</code></td><td class="row-actions">'+
+'<button type="button" class="btn secondary" data-h="'+i.id+'">Health</button>'+
+'<button type="button" class="btn secondary" data-i="'+i.id+'">Inject</button>'+
+'<button type="button" class="btn danger" data-x="'+i.id+'">Stop</button></td></tr>';
+}).join(''):'<tr><td colspan="7" class="empty">No bodies</td></tr>';
+$('tb').querySelectorAll('[data-x]').forEach(b=>b.onclick=async()=>{await fetch('/v1/instances/'+b.dataset.x+'/stop',{method:'POST'});load()});
+$('tb').querySelectorAll('[data-h]').forEach(b=>b.onclick=async()=>{const r=await fetch('/v1/instances/'+b.dataset.h+'/health').then(x=>x.json());alert((r.healthy?'OK':'FAIL')+': '+r.reason)});
+$('tb').querySelectorAll('[data-i]').forEach(b=>b.onclick=async()=>{const r=await fetch('/v1/instances/'+b.dataset.i+'/inject-identity',{method:'POST'});alert(r.ok?'Injected':'Fail')});
+$('tpb').innerHTML=S.playbooks.length?S.playbooks.map(p=>'<tr><td>'+p.name+'</td><td>'+p.kind+'</td><td>'+(p.description||'')+'</td></tr>').join(''):'<tr><td colspan="3" class="empty">None</td></tr>';
+$('tas').innerHTML=S.assignments.length?S.assignments.map(a=>'<tr><td><code>'+a.playbook_id.slice(0,8)+'…</code></td><td><code>'+a.persona_id.slice(0,8)+'…</code></td><td>'+a.active+'</td></tr>').join(''):'<tr><td colspan="3" class="empty">None</td></tr>';
+$('tpx').innerHTML=S.proxies.length?S.proxies.map(p=>'<tr><td><code>'+p.persona_id.slice(0,8)+'…</code></td><td>'+p.host+'</td><td>'+p.port+'</td><td>'+(p.type||'')+'</td></tr>').join(''):'<tr><td colspan="4" class="empty">Use PUT /v1/personas/{id}/proxy</td></tr>';
+}
+async function start(id,sim){
+$('msg').textContent='Starting…';
+const url=sim?'/v1/instances':'/v1/instances?real=true';
+const r=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({persona_id:id,simulated:sim})});
+$('msg').textContent=r.ok?'Started':'Fail: '+await r.text();load();
+}
+$('ref').onclick=()=>load();
+$('mk').onclick=async()=>{await fetch('/v1/personas',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({display_name:'Persona '+Math.floor(Math.random()*1000),location:'Berlin',timezone:'Europe/Berlin',age_min:25,age_max:30,engagement:'thoughtful_commenter'})});load()};
+load();setInterval(load,20000);
+</script>
 </body>
 </html>`
 
