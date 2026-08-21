@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"net/http"
+	"strconv"
 	"time"
 
 	"github.com/vikramiiitm/unborn/management/orchestrator/internal/config"
@@ -33,9 +34,11 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("POST /v1/instances", s.handleCreateInstance)
 	s.mux.HandleFunc("GET /v1/instances/{id}", s.handleGetInstance)
 	s.mux.HandleFunc("POST /v1/instances/{id}/stop", s.handleStopInstance)
+	s.mux.HandleFunc("POST /v1/instances/{id}/restart", s.handleRestartInstance)
 	s.mux.HandleFunc("POST /v1/instances/{id}/wipe", s.handleWipeInstance)
 	s.mux.HandleFunc("POST /v1/instances/{id}/inject-identity", s.handleInjectIdentity)
 	s.mux.HandleFunc("GET /v1/instances/{id}/health", s.handleInstanceHealth)
+	s.mux.HandleFunc("GET /v1/instances/{id}/logs", s.handleInstanceLogs)
 	s.mux.HandleFunc("GET /v1/personas", s.handleListPersonas)
 	s.mux.HandleFunc("POST /v1/personas", s.handleCreatePersona)
 	s.mux.HandleFunc("GET /v1/personas/{id}", s.handleGetPersona)
@@ -123,6 +126,14 @@ func (s *Server) handleStopInstance(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]string{"status": "stopped"})
 }
 
+func (s *Server) handleRestartInstance(w http.ResponseWriter, r *http.Request) {
+	if err := s.orch.RestartInstance(r.Context(), r.PathValue("id")); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]string{"status": "restarted"})
+}
+
 func (s *Server) handleWipeInstance(w http.ResponseWriter, r *http.Request) {
 	if err := s.orch.WipeInstanceData(r.PathValue("id")); err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
@@ -142,6 +153,22 @@ func (s *Server) handleInjectIdentity(w http.ResponseWriter, r *http.Request) {
 func (s *Server) handleInstanceHealth(w http.ResponseWriter, r *http.Request) {
 	ok, reason := s.orch.CheckBodyHealth(r.Context(), r.PathValue("id"))
 	writeJSON(w, http.StatusOK, map[string]any{"healthy": ok, "reason": reason})
+}
+
+func (s *Server) handleInstanceLogs(w http.ResponseWriter, r *http.Request) {
+	tail := 100
+	if t := r.URL.Query().Get("tail"); t != "" {
+		if n, err := strconv.Atoi(t); err == nil && n > 0 {
+			tail = n
+		}
+	}
+	logs, err := s.orch.InstanceLogs(r.Context(), r.PathValue("id"), tail)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+	_, _ = w.Write([]byte(logs))
 }
 
 func (s *Server) handleListPersonas(w http.ResponseWriter, r *http.Request) {
