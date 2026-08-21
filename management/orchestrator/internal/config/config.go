@@ -6,11 +6,13 @@ import (
 )
 
 type Config struct {
-	HTTPPort     int
-	DatabaseURL  string
-	RedisURL     string
-	Environment  string
-	MaxInstances int
+	HTTPPort            int
+	DatabaseURL         string
+	RedisURL            string
+	Environment         string
+	MaxInstances        int
+	BehaviorLoop        bool
+	BehaviorIntervalSec int
 }
 
 func Load() *Config {
@@ -28,12 +30,23 @@ func Load() *Config {
 		}
 	}
 
+	interval := 60
+	if i := os.Getenv("BEHAVIOR_INTERVAL_SEC"); i != "" {
+		if parsed, err := strconv.Atoi(i); err == nil && parsed > 0 {
+			interval = parsed
+		}
+	}
+
+	loop := os.Getenv("BEHAVIOR_LOOP") == "true" || os.Getenv("BEHAVIOR_LOOP") == "1"
+
 	return &Config{
-		HTTPPort:     port,
-		DatabaseURL:  getEnv("DATABASE_URL", "postgres://unborn:unborn@localhost:5432/unborn?sslmode=disable"),
-		RedisURL:     getEnv("REDIS_URL", "redis://localhost:6379"),
-		Environment:  getEnv("UNBORN_ENV", "development"),
-		MaxInstances: maxInstances,
+		HTTPPort:            port,
+		DatabaseURL:         getEnv("DATABASE_URL", "postgres://unborn:unborn@localhost:5432/unborn?sslmode=disable"),
+		RedisURL:            getEnv("REDIS_URL", "redis://localhost:6379"),
+		Environment:         getEnv("UNBORN_ENV", "development"),
+		MaxInstances:        maxInstances,
+		BehaviorLoop:        loop,
+		BehaviorIntervalSec: interval,
 	}
 }
 

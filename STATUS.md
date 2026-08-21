@@ -6,49 +6,49 @@ Last updated: 2026-08-22
 **Phase 1 – Sellable MVP Foundation** (in progress)
 
 ## Positioning
-Farming with souls. Meaningful population scale. Sustainable believable attention.
+Farming with souls · meaningful population scale · sustainable believable attention
 
 ---
 
 ## What Is Built
 
-### Documentation
-- [x] Strategy, philosophy, GTM, scale architecture, vitality, farming-with-souls
-- [x] **Management UX & Automations** (`docs/management-ux.md`)
-
-### Code
+- [x] Docs (strategy, philosophy, GTM, UX, ADRs)
 - [x] PostgreSQL Persona Store
-- [x] Behavior Engine skeleton
+- [x] Redroid Body Manager (docker + simulated fallback)
+- [x] Behavior Engine skeleton + **background loop**
 - [x] Vitality Tracker skeleton
-- [x] **Redroid Body Manager** — real `docker run` path when Docker is available; simulated fallback
-  - privileged container, data volume, ADB port allocation, optional proxy boot props
-  - image default: `redroid/redroid:14.0.0_64only-latest`
-- [x] HTTP API (personas, instances, next-action, vitality)
-- [ ] Host kernel modules + installer checks (binder/ashmem)
-- [ ] Continuous behavior loop
-- [ ] Dashboard UI
-- [ ] Playbooks / automations engine
+- [x] **Minimal dashboard** at `GET /` and `/dashboard`
+- [x] **Installer script** `installer/install.sh`
+- [x] Compose: docker.sock + redroid data volume
+- [ ] Playbooks engine
+- [ ] License service
+- [ ] Rich identity injection / per-persona proxy API
 
 ---
 
-## Redroid notes
+## Run
 
-Requires on host:
 ```bash
-sudo apt install linux-modules-extra-$(uname -r)
-sudo modprobe binder_linux devices="binder,hwbinder,vndbinder"
-sudo modprobe ashmem_linux   # if needed
+# On Ubuntu host (once)
+sudo bash installer/install.sh
+
+cd docker && docker compose up --build -d
+
+# Dashboard
+open http://localhost:8080/
+
+# API
+curl -X POST http://localhost:8080/v1/personas -H 'Content-Type: application/json' \
+  -d '{"display_name":"Ava","location":"Berlin","timezone":"Europe/Berlin"}'
 ```
 
-Orchestrator uses Docker CLI. Mount docker.sock in compose when ready for real bodies.
-
-`POST /v1/instances` with `simulated: false` (and `?real=true`) attempts real Redroid when Docker works.
+Behavior loop logs next actions for personas with running bodies every 60s (configurable).
 
 ---
 
 ## Next
-1. Compose: optional docker.sock + data volume for Redroid
-2. Background behavior loop
-3. Minimal dashboard (population + vitality)
-4. Installer (kernel modules + docker + compose)
-5. Playbook automation skeleton
+1. Playbook / automation skeleton
+2. Per-persona proxy assignment
+3. Persist vitality in Postgres
+4. License service
+5. Deeper Redroid health (ADB ping)

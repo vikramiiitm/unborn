@@ -1,7 +1,7 @@
 version: "3.9"
 
-# Unborn – Phase 1 foundation
-# Management Plane + placeholder for Execution Plane
+# Unborn – Phase 1
+# Management Plane. Redroid bodies are started dynamically by the Orchestrator.
 
 services:
   postgres:
@@ -38,22 +38,23 @@ services:
       DATABASE_URL: postgres://unborn:unborn@postgres:5432/unborn?sslmode=disable
       REDIS_URL: redis://redis:6379
       UNBORN_ENV: development
+      MAX_INSTANCES: "10"
+      BEHAVIOR_LOOP: "true"
+      BEHAVIOR_INTERVAL_SEC: "60"
     ports:
       - "8080:8080"
+    volumes:
+      # Allow Orchestrator to start/stop Redroid containers on the host
+      - /var/run/docker.sock:/var/run/docker.sock
+      # Shared data root for Redroid /data mounts (host path)
+      - unborn_redroid_data:/var/lib/unborn/redroid-data
     depends_on:
       postgres:
         condition: service_healthy
       redis:
         condition: service_started
     restart: unless-stopped
-    # volumes:
-    #   - /var/run/docker.sock:/var/run/docker.sock  # later for managing Redroid containers
-
-  # Placeholder for future Redroid instances – managed dynamically by Orchestrator
-  # redroid-example:
-  #   image: redroid/redroid:latest
-  #   privileged: true
-  #   ...
 
 volumes:
   postgres_data:
+  unborn_redroid_data:

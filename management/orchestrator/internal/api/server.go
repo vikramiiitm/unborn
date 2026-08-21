@@ -27,6 +27,8 @@ func NewServer(orch *orchestrator.Orchestrator, cfg *config.Config) *Server {
 
 func (s *Server) routes() {
 	s.mux.HandleFunc("GET /health", s.handleHealth)
+	s.mux.HandleFunc("GET /{$}", s.handleDashboard)
+	s.mux.HandleFunc("GET /dashboard", s.handleDashboard)
 	s.mux.HandleFunc("GET /v1/instances", s.handleListInstances)
 	s.mux.HandleFunc("POST /v1/instances", s.handleCreateInstance)
 	s.mux.HandleFunc("GET /v1/instances/{id}", s.handleGetInstance)
@@ -43,7 +45,7 @@ func (s *Server) routes() {
 func (s *Server) ListenAndServe(addr string) error {
 	s.http = &http.Server{
 		Addr: addr, Handler: s.mux,
-		ReadTimeout: 10 * time.Second, WriteTimeout: 10 * time.Second, IdleTimeout: 60 * time.Second,
+		ReadTimeout: 15 * time.Second, WriteTimeout: 15 * time.Second, IdleTimeout: 60 * time.Second,
 	}
 	return s.http.ListenAndServe()
 }

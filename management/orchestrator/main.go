@@ -22,12 +22,13 @@ func main() {
 	defer cancel()
 
 	orch := orchestrator.New(cfg)
+	go orch.RunBehaviorLoop(ctx)
 
 	server := api.NewServer(orch, cfg)
 
 	go func() {
 		addr := fmt.Sprintf(":%d", cfg.HTTPPort)
-		log.Printf("Unborn Orchestrator starting on %s", addr)
+		log.Printf("Unborn Orchestrator starting on %s (env=%s)", addr, cfg.Environment)
 		if err := server.ListenAndServe(addr); err != nil && err != http.ErrServerClosed {
 			log.Fatalf("server error: %v", err)
 		}
@@ -41,7 +42,7 @@ func main() {
 
 	if err := server.Shutdown(shutdownCtx); err != nil {
 		log.Printf("shutdown error: %v", err)
+		os.Exit(1)
 	}
-
 	log.Println("Orchestrator stopped")
 }
