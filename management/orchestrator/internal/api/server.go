@@ -39,6 +39,7 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("POST /v1/instances/{id}/inject-identity", s.handleInjectIdentity)
 	s.mux.HandleFunc("GET /v1/instances/{id}/health", s.handleInstanceHealth)
 	s.mux.HandleFunc("GET /v1/instances/{id}/logs", s.handleInstanceLogs)
+	s.mux.HandleFunc("GET /v1/instances/{id}/screenshot", s.handleScreenshot)
 	s.mux.HandleFunc("GET /v1/personas", s.handleListPersonas)
 	s.mux.HandleFunc("POST /v1/personas", s.handleCreatePersona)
 	s.mux.HandleFunc("GET /v1/personas/{id}", s.handleGetPersona)
@@ -61,7 +62,7 @@ func (s *Server) routes() {
 func (s *Server) ListenAndServe(addr string) error {
 	s.http = &http.Server{
 		Addr: addr, Handler: s.mux,
-		ReadTimeout: 15 * time.Second, WriteTimeout: 30 * time.Second, IdleTimeout: 60 * time.Second,
+		ReadTimeout: 15 * time.Second, WriteTimeout: 60 * time.Second, IdleTimeout: 60 * time.Second,
 	}
 	return s.http.ListenAndServe()
 }
@@ -169,6 +170,21 @@ func (s *Server) handleInstanceLogs(w http.ResponseWriter, r *http.Request) {
 	}
 	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 	_, _ = w.Write([]byte(logs))
+}
+
+func (s *Server) handleScreenshot(w http.ResponseWriter, r *http.Request) {
+	png, err := s.orch.Screenshot(r.Context(), r.PathValue("id"))
+	if err != nil {
+		if err == orchestrator.ErrSimulatedNoScreen {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	w.Header().Set("Content-Type", "image/png")
+	w.Header().Set("Cache-Control", "no-store")
+	_, _ = w.Write(png)
 }
 
 func (s *Server) handleListPersonas(w http.ResponseWriter, r *http.Request) {
