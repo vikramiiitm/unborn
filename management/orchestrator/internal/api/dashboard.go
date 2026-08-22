@@ -37,7 +37,7 @@ th{color:var(--muted);font-size:.7rem;text-transform:uppercase}
 .screens{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:1rem}
 .phone{background:var(--card);border-radius:14px;overflow:hidden;border:1px solid var(--border);display:flex;flex-direction:column}
 .phone .meta{padding:.45rem .6rem;font-size:.72rem;color:var(--muted);display:flex;justify-content:space-between}
-.phone .stage{position:relative;background:#111;cursor:crosshair;user-select:none;min-height:120px}
+.phone .stage{position:relative;background:#000;cursor:crosshair;user-select:none;min-height:120px}
 .phone img{width:100%;display:block;aspect-ratio:9/16;object-fit:contain;background:#000}
 .phone .ph{padding:2rem .5rem;text-align:center;color:var(--muted);font-size:.8rem;aspect-ratio:9/16;display:flex;align-items:center;justify-content:center}
 .phone .ctrls{display:flex;gap:.3rem;padding:.45rem;flex-wrap:wrap;border-top:1px solid var(--border)}
@@ -63,8 +63,12 @@ th{color:var(--muted);font-size:.7rem;text-transform:uppercase}
 <div class="stat"><div class="label">License</div><div class="value" id="s-l">—</div></div>
 </div>
 <section id="panel-screens" class="panel active">
-<div class="note">Frames update in the background (no blank flash). Click = tap · drag = swipe · Stop ends container.</div>
-<div class="actions"><button type="button" class="btn" id="ref-sc">Refresh now</button><span class="msg" id="msg-sc"></span></div>
+<div class="note">Frames update in place (~8s). Click = tap · drag = swipe · Stop ends container. Auto-refresh pauses while you press on a screen.</div>
+<div class="actions">
+<button type="button" class="btn" id="ref-sc">Refresh frames</button>
+<label class="msg"><input type="checkbox" id="auto-sc" checked/> auto</label>
+<span class="msg" id="msg-sc"></span>
+</div>
 <div class="screens" id="grid"></div>
 </section>
 <section id="panel-pop" class="panel">
@@ -82,13 +86,14 @@ th{color:var(--muted);font-size:.7rem;text-transform:uppercase}
 <script>
 const $=id=>document.getElementById(id); const DW=1080, DH=1920;
 let S={personas:[],instances:[],license:null,playbooks:[]};
-let builtIds='';
+let interacting=false; // pause frame poll while pointer down
+let layoutKey=''; // rebuild DOM only when body set changes
 
 document.querySelectorAll('nav button').forEach(b=>{
  b.onclick=()=>{document.querySelectorAll('nav button').forEach(x=>x.classList.remove('active'));
  document.querySelectorAll('.panel').forEach(x=>x.classList.remove('active'));
  b.classList.add('active');$('panel-'+b.dataset.p).classList.add('active');
- if(b.dataset.p==='screens') ensurePhones(true);};
+ if(b.dataset.p==='screens') refreshScreens(true);};
 });
 
 async function load(){
@@ -96,7 +101,7 @@ async function load(){
   fetch('/v1/personas').then(r=>r.json()),fetch('/v1/instances').then(r=>r.json()),
   fetch('/v1/license').then(r=>r.json()),fetch('/v1/playbooks').then(r=>r.json())]);
  S={personas:personas||[],instances:instances||[],license,playbooks:playbooks||[]};
- render(); ensurePhones(false);
+ render(); refreshScreens(false);
 }
 
 function render(){
@@ -130,7 +135,7 @@ async function stopBody(id){
  $('msg-sc').textContent='Stopping…';
  const r=await fetch('/v1/instances/'+id+'/stop',{method:'POST'});
  $('msg-sc').textContent=r.ok?'Stopped':'Stop failed';
- builtIds=''; load();
+ layoutKey=''; load();
 }
 async function wipeBody(id){
  if(!confirm('Wipe data dir? Stop first.')) return;
@@ -146,78 +151,97 @@ function deviceXY(img,cx,cy){const r=img.getBoundingClientRect();
 async function postInput(id,path,body){
  const r=await fetch('/v1/instances/'+id+'/input/'+path,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
  $('msg-sc').textContent=r.ok?path+' ok':path+' fail';
- setTimeout(()=>refreshFramesOnly(), 500);
+ // soft refresh one frame after action (no full rebuild)
+ setTimeout(()=>updateFrameSrc(id), 500);
+}
+
+function updateFrameSrc(id){
+ const img=document.querySelector('.phone[data-id="'+id+'"] img');
+ if(!img) return;
+ const next=new Image();
+ next.onload=()=>{ img.src=next.src; };
+ next.onerror=()=>{};
+ next.src='/v1/instances/'+id+'/screenshot?t='+Date.now();
 }
 
 function wirePhone(el,id){
  const stage=el.querySelector('.stage'), img=el.querySelector('img');
- if(stage&&img){
-  let down=null;
-  stage.onpointerdown=e=>{e.preventDefault(); stage.setPointerCapture(e.pointerId); down=deviceXY(img,e.clientX,e.clientY);};
-  stage.onpointerup=e=>{if(!down)return; const up=deviceXY(img,e.clientX,e.clientY);
-   if(Math.abs(up.x-down.x)+Math.abs(up.y-down.y)<20) postInput(id,'tap',{x:up.x,y:up.y});
-   else postInput(id,'swipe',{x1:down.x,y1:down.y,x2:up.x,y2:up.y,ms:280}); down=null;};
- }
+ if(!stage) return;
+ let down=null;
+ stage.onpointerdown=e=>{e.preventDefault(); interacting=true; stage.setPointerCapture(e.pointerId);
+  if(img) down=deviceXY(img,e.clientX,e.clientY);};
+ stage.onpointerup=e=>{
+  interacting=false;
+  if(!down||!img) return;
+  const up=deviceXY(img,e.clientX,e.clientY);
+  if(Math.abs(up.x-down.x)+Math.abs(up.y-down.y)<20) postInput(id,'tap',{x:up.x,y:up.y});
+  else postInput(id,'swipe',{x1:down.x,y1:down.y,x2:up.x,y2:up.y,ms:280});
+  down=null;
+ };
+ stage.onpointercancel=()=>{ interacting=false; down=null; };
  el.querySelectorAll('[data-key]').forEach(b=>b.onclick=()=>postInput(id,'key',{keycode:+b.dataset.key}));
  el.querySelectorAll('[data-stop]').forEach(b=>b.onclick=()=>stopBody(id));
 }
 
-/** Rebuild phone cards only when body set changes — avoids flicker */
-function ensurePhones(force){
- const running=S.instances.filter(i=>i.state==='running');
- const key=running.map(i=>i.id+(i.simulated?'s':'r')).sort().join('|');
- if(!force && key===builtIds){ refreshFramesOnly(); return; }
- builtIds=key;
+/** force=true rebuilds cards; false only swaps img src in place */
+function refreshScreens(force){
  const grid=$('grid');
- if(!running.length){ grid.innerHTML='<div class="empty">Start a Real body to control a screen.</div>'; return; }
+ const real=S.instances.filter(i=>!i.simulated&&i.state==='running');
+ const sim=S.instances.filter(i=>i.simulated&&i.state==='running');
+ const key=real.map(i=>i.id).concat(sim.map(i=>'s'+i.id)).sort().join('|');
+
+ if(!real.length&&!sim.length){
+  grid.innerHTML='<div class="empty">Start a Real body to control a screen.</div>';
+  layoutKey='';
+  return;
+ }
+
+ // In-place frame update (no DOM replace → no blink)
+ if(!force && key===layoutKey){
+  if(interacting) return;
+  real.forEach(i=>updateFrameSrc(i.id));
+  $('msg-sc').textContent=real.length+' screen(s)';
+  return;
+ }
+
+ layoutKey=key;
  let html='';
- running.forEach(i=>{
-  if(i.simulated){
-   html+='<div class="phone" data-id="'+i.id+'"><div class="meta">sim · <code>'+i.id.slice(0,6)+'</code></div><div class="ph">API only</div>'+
-    '<div class="ctrls"><button type="button" class="btn danger" data-stop="1">Stop</button></div></div>';
-  } else {
-   html+='<div class="phone" data-id="'+i.id+'"><div class="meta"><span>real · '+(i.adb_port||'?')+'</span><code>'+i.id.slice(0,6)+'</code></div>'+
-    '<div class="stage"><img alt="screen" draggable="false"/></div>'+
-    '<div class="ctrls"><button type="button" class="btn secondary" data-key="4">Back</button>'+
-    '<button type="button" class="btn secondary" data-key="3">Home</button>'+
-    '<button type="button" class="btn secondary" data-key="187">Recents</button>'+
-    '<button type="button" class="btn danger" data-stop="1">Stop</button></div>'+
-    '<div class="hint">Click = tap · drag = swipe</div></div>';
-  }
+ real.forEach(i=>{
+  html+='<div class="phone" data-id="'+i.id+'"><div class="meta"><span>real · '+(i.adb_port||'?')+'</span><code>'+i.id.slice(0,6)+'</code></div>'+
+   '<div class="stage"><img alt="" src="/v1/instances/'+i.id+'/screenshot?t='+Date.now()+'" draggable="false"/></div>'+
+   '<div class="ctrls"><button type="button" class="btn secondary" data-key="4">Back</button>'+
+   '<button type="button" class="btn secondary" data-key="3">Home</button>'+
+   '<button type="button" class="btn secondary" data-key="187">Recents</button>'+
+   '<button type="button" class="btn danger" data-stop="1">Stop</button></div>'+
+   '<div class="hint">Click = tap · drag = swipe</div></div>';
+ });
+ sim.forEach(i=>{
+  html+='<div class="phone" data-id="'+i.id+'"><div class="meta">sim · <code>'+i.id.slice(0,6)+'</code></div><div class="ph">API only</div>'+
+   '<div class="ctrls"><button type="button" class="btn danger" data-stop="1">Stop</button></div></div>';
  });
  grid.innerHTML=html;
  grid.querySelectorAll('.phone[data-id]').forEach(el=>wirePhone(el,el.dataset.id));
- refreshFramesOnly();
- $('msg-sc').textContent=running.filter(i=>!i.simulated).length+' interactive';
-}
-
-/** Load new PNG off-DOM, swap only when ready — no blank frame */
-function refreshFramesOnly(){
- document.querySelectorAll('.phone[data-id] img').forEach(img=>{
-  const id=img.closest('.phone').dataset.id;
-  const inst=S.instances.find(x=>x.id===id);
-  if(!inst||inst.simulated) return;
-  const url='/v1/instances/'+id+'/screenshot?t='+Date.now();
-  const pre=new Image();
-  pre.onload=()=>{ img.src=url; };
-  pre.onerror=()=>{};
-  pre.src=url;
- });
+ $('msg-sc').textContent=real.length?real.length+' interactive':'sim only';
 }
 
 async function start(id,sim){
  $('msg').textContent='Starting…';
  const url=sim?'/v1/instances':'/v1/instances?real=true';
  const r=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({persona_id:id,simulated:sim})});
- $('msg').textContent=r.ok?'Started':'Fail'; builtIds=''; load();
+ $('msg').textContent=r.ok?'Started':'Fail'; layoutKey=''; load();
 }
 
 $('ref').onclick=()=>load();
-$('ref-sc').onclick=()=>refreshFramesOnly();
+$('ref-sc').onclick=()=>refreshScreens(true);
 $('mk').onclick=async()=>{await fetch('/v1/personas',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({display_name:'Persona '+Math.floor(Math.random()*1000),location:'Berlin',timezone:'Europe/Berlin'})});load()};
+
 load();
 setInterval(load, 30000);
-setInterval(()=>refreshFramesOnly(), 8000);
+setInterval(()=>{
+ if(!$('auto-sc').checked) return;
+ if(interacting) return;
+ refreshScreens(false);
+}, 8000);
 </script>
 </body>
 </html>`
