@@ -37,8 +37,8 @@ th{color:var(--muted);font-size:.7rem;text-transform:uppercase}
 .screens{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:1rem}
 .phone{background:var(--card);border-radius:14px;overflow:hidden;border:1px solid var(--border);display:flex;flex-direction:column}
 .phone .meta{padding:.45rem .6rem;font-size:.72rem;color:var(--muted);display:flex;justify-content:space-between}
-.phone .stage{position:relative;background:#000;cursor:crosshair;user-select:none}
-.phone img{width:100%;display:block;aspect-ratio:9/16;object-fit:contain}
+.phone .stage{position:relative;background:#111;cursor:crosshair;user-select:none;min-height:120px}
+.phone img{width:100%;display:block;aspect-ratio:9/16;object-fit:contain;background:#000}
 .phone .ph{padding:2rem .5rem;text-align:center;color:var(--muted);font-size:.8rem;aspect-ratio:9/16;display:flex;align-items:center;justify-content:center}
 .phone .ctrls{display:flex;gap:.3rem;padding:.45rem;flex-wrap:wrap;border-top:1px solid var(--border)}
 .phone .ctrls button{flex:1;min-width:2.8rem}
@@ -63,8 +63,8 @@ th{color:var(--muted);font-size:.7rem;text-transform:uppercase}
 <div class="stat"><div class="label">License</div><div class="value" id="s-l">—</div></div>
 </div>
 <section id="panel-screens" class="panel active">
-<div class="note"><strong>Click</strong> = tap · <strong>drag</strong> = swipe · <strong>Stop</strong> ends the Redroid container (<code>docker rm -f</code>). Data volume kept unless you Wipe.</div>
-<div class="actions"><button type="button" class="btn" id="ref-sc">Refresh</button><span class="msg" id="msg-sc"></span></div>
+<div class="note">Frames update in the background (no blank flash). Click = tap · drag = swipe · Stop ends container.</div>
+<div class="actions"><button type="button" class="btn" id="ref-sc">Refresh now</button><span class="msg" id="msg-sc"></span></div>
 <div class="screens" id="grid"></div>
 </section>
 <section id="panel-pop" class="panel">
@@ -82,18 +82,23 @@ th{color:var(--muted);font-size:.7rem;text-transform:uppercase}
 <script>
 const $=id=>document.getElementById(id); const DW=1080, DH=1920;
 let S={personas:[],instances:[],license:null,playbooks:[]};
+let builtIds='';
+
 document.querySelectorAll('nav button').forEach(b=>{
  b.onclick=()=>{document.querySelectorAll('nav button').forEach(x=>x.classList.remove('active'));
  document.querySelectorAll('.panel').forEach(x=>x.classList.remove('active'));
  b.classList.add('active');$('panel-'+b.dataset.p).classList.add('active');
- if(b.dataset.p==='screens') refreshScreens();};
+ if(b.dataset.p==='screens') ensurePhones(true);};
 });
+
 async function load(){
  const [personas,instances,license,playbooks]=await Promise.all([
   fetch('/v1/personas').then(r=>r.json()),fetch('/v1/instances').then(r=>r.json()),
   fetch('/v1/license').then(r=>r.json()),fetch('/v1/playbooks').then(r=>r.json())]);
- S={personas:personas||[],instances:instances||[],license,playbooks:playbooks||[]}; render(); refreshScreens();
+ S={personas:personas||[],instances:instances||[],license,playbooks:playbooks||[]};
+ render(); ensurePhones(false);
 }
+
 function render(){
  const bm={}; S.instances.forEach(i=>bm[i.persona_id]=i);
  const real=S.instances.filter(i=>!i.simulated&&i.state==='running').length;
@@ -120,63 +125,99 @@ function render(){
  $('tb').querySelectorAll('[data-w]').forEach(b=>b.onclick=()=>wipeBody(b.dataset.w));
  $('tpb').innerHTML=S.playbooks.length?S.playbooks.map(p=>'<tr><td>'+p.name+'</td><td>'+p.kind+'</td></tr>').join(''):'<tr><td colspan="2" class="empty">None</td></tr>';
 }
+
 async function stopBody(id){
  $('msg-sc').textContent='Stopping…';
  const r=await fetch('/v1/instances/'+id+'/stop',{method:'POST'});
- $('msg-sc').textContent=r.ok?'Stopped':'Stop failed: '+await r.text();
- load();
+ $('msg-sc').textContent=r.ok?'Stopped':'Stop failed';
+ builtIds=''; load();
 }
 async function wipeBody(id){
- if(!confirm('Wipe data dir? Container must already be stopped.')) return;
+ if(!confirm('Wipe data dir? Stop first.')) return;
  const r=await fetch('/v1/instances/'+id+'/wipe',{method:'POST'});
- alert(r.ok?'Wiped':'Wipe failed: '+await r.text());
+ alert(r.ok?'Wiped':'Wipe failed');
  load();
 }
+
 function deviceXY(img,cx,cy){const r=img.getBoundingClientRect();
  return {x:Math.max(0,Math.min(DW-1,Math.round((cx-r.left)/r.width*DW))),
  y:Math.max(0,Math.min(DH-1,Math.round((cy-r.top)/r.height*DH)))};}
+
 async function postInput(id,path,body){
  const r=await fetch('/v1/instances/'+id+'/input/'+path,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
- $('msg-sc').textContent=r.ok?path+' ok':path+' fail'; setTimeout(refreshScreens,350);
+ $('msg-sc').textContent=r.ok?path+' ok':path+' fail';
+ setTimeout(()=>refreshFramesOnly(), 500);
 }
+
 function wirePhone(el,id){
- const stage=el.querySelector('.stage'), img=el.querySelector('img'); if(!stage||!img) return;
- let down=null;
- stage.onpointerdown=e=>{e.preventDefault(); stage.setPointerCapture(e.pointerId); down=deviceXY(img,e.clientX,e.clientY);};
- stage.onpointerup=e=>{if(!down)return; const up=deviceXY(img,e.clientX,e.clientY);
-  if(Math.abs(up.x-down.x)+Math.abs(up.y-down.y)<20) postInput(id,'tap',{x:up.x,y:up.y});
-  else postInput(id,'swipe',{x1:down.x,y1:down.y,x2:up.x,y2:up.y,ms:280}); down=null;};
+ const stage=el.querySelector('.stage'), img=el.querySelector('img');
+ if(stage&&img){
+  let down=null;
+  stage.onpointerdown=e=>{e.preventDefault(); stage.setPointerCapture(e.pointerId); down=deviceXY(img,e.clientX,e.clientY);};
+  stage.onpointerup=e=>{if(!down)return; const up=deviceXY(img,e.clientX,e.clientY);
+   if(Math.abs(up.x-down.x)+Math.abs(up.y-down.y)<20) postInput(id,'tap',{x:up.x,y:up.y});
+   else postInput(id,'swipe',{x1:down.x,y1:down.y,x2:up.x,y2:up.y,ms:280}); down=null;};
+ }
  el.querySelectorAll('[data-key]').forEach(b=>b.onclick=()=>postInput(id,'key',{keycode:+b.dataset.key}));
  el.querySelectorAll('[data-stop]').forEach(b=>b.onclick=()=>stopBody(id));
 }
-function refreshScreens(){
+
+/** Rebuild phone cards only when body set changes — avoids flicker */
+function ensurePhones(force){
+ const running=S.instances.filter(i=>i.state==='running');
+ const key=running.map(i=>i.id+(i.simulated?'s':'r')).sort().join('|');
+ if(!force && key===builtIds){ refreshFramesOnly(); return; }
+ builtIds=key;
  const grid=$('grid');
- const real=S.instances.filter(i=>!i.simulated&&i.state==='running');
- const sim=S.instances.filter(i=>i.simulated&&i.state==='running');
- if(!real.length&&!sim.length){grid.innerHTML='<div class="empty">Start a Real body to control a screen.</div>';return;}
+ if(!running.length){ grid.innerHTML='<div class="empty">Start a Real body to control a screen.</div>'; return; }
  let html='';
- real.forEach(i=>{html+='<div class="phone" data-id="'+i.id+'"><div class="meta"><span>real · '+(i.adb_port||'?')+'</span><code>'+i.id.slice(0,6)+'</code></div>'+
-  '<div class="stage"><img src="/v1/instances/'+i.id+'/screenshot?t='+Date.now()+'" draggable="false" onerror="this.style.opacity=.3"/></div>'+
-  '<div class="ctrls"><button type="button" class="btn secondary" data-key="4">Back</button>'+
-  '<button type="button" class="btn secondary" data-key="3">Home</button>'+
-  '<button type="button" class="btn secondary" data-key="187">Recents</button>'+
-  '<button type="button" class="btn danger" data-stop="1">Stop</button></div>'+
-  '<div class="hint">Click = tap · drag = swipe · Stop = end container</div></div>';});
- sim.forEach(i=>{html+='<div class="phone" data-id="'+i.id+'"><div class="meta">sim · <code>'+i.id.slice(0,6)+'</code></div><div class="ph">API only</div>'+
-  '<div class="ctrls"><button type="button" class="btn danger" data-stop="1">Stop</button></div></div>';});
+ running.forEach(i=>{
+  if(i.simulated){
+   html+='<div class="phone" data-id="'+i.id+'"><div class="meta">sim · <code>'+i.id.slice(0,6)+'</code></div><div class="ph">API only</div>'+
+    '<div class="ctrls"><button type="button" class="btn danger" data-stop="1">Stop</button></div></div>';
+  } else {
+   html+='<div class="phone" data-id="'+i.id+'"><div class="meta"><span>real · '+(i.adb_port||'?')+'</span><code>'+i.id.slice(0,6)+'</code></div>'+
+    '<div class="stage"><img alt="screen" draggable="false"/></div>'+
+    '<div class="ctrls"><button type="button" class="btn secondary" data-key="4">Back</button>'+
+    '<button type="button" class="btn secondary" data-key="3">Home</button>'+
+    '<button type="button" class="btn secondary" data-key="187">Recents</button>'+
+    '<button type="button" class="btn danger" data-stop="1">Stop</button></div>'+
+    '<div class="hint">Click = tap · drag = swipe</div></div>';
+  }
+ });
  grid.innerHTML=html;
  grid.querySelectorAll('.phone[data-id]').forEach(el=>wirePhone(el,el.dataset.id));
- $('msg-sc').textContent=real.length?real.length+' interactive':'sim only';
+ refreshFramesOnly();
+ $('msg-sc').textContent=running.filter(i=>!i.simulated).length+' interactive';
 }
+
+/** Load new PNG off-DOM, swap only when ready — no blank frame */
+function refreshFramesOnly(){
+ document.querySelectorAll('.phone[data-id] img').forEach(img=>{
+  const id=img.closest('.phone').dataset.id;
+  const inst=S.instances.find(x=>x.id===id);
+  if(!inst||inst.simulated) return;
+  const url='/v1/instances/'+id+'/screenshot?t='+Date.now();
+  const pre=new Image();
+  pre.onload=()=>{ img.src=url; };
+  pre.onerror=()=>{};
+  pre.src=url;
+ });
+}
+
 async function start(id,sim){
  $('msg').textContent='Starting…';
  const url=sim?'/v1/instances':'/v1/instances?real=true';
  const r=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({persona_id:id,simulated:sim})});
- $('msg').textContent=r.ok?'Started':'Fail'; load();
+ $('msg').textContent=r.ok?'Started':'Fail'; builtIds=''; load();
 }
-$('ref').onclick=()=>load(); $('ref-sc').onclick=()=>refreshScreens();
+
+$('ref').onclick=()=>load();
+$('ref-sc').onclick=()=>refreshFramesOnly();
 $('mk').onclick=async()=>{await fetch('/v1/personas',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({display_name:'Persona '+Math.floor(Math.random()*1000),location:'Berlin',timezone:'Europe/Berlin'})});load()};
-load(); setInterval(load,25000); setInterval(refreshScreens,4000);
+load();
+setInterval(load, 30000);
+setInterval(()=>refreshFramesOnly(), 8000);
 </script>
 </body>
 </html>`
