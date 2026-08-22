@@ -29,7 +29,8 @@ type RedroidConfig struct {
 
 func DefaultRedroidConfig() RedroidConfig {
 	cfg := RedroidConfig{
-		Image:       "redroid/redroid:14.0.0_64only-latest",
+		// Android 15 64-bit (AOSP). Override with REDROID_IMAGE=redroid/redroid:16.0.0_64only-latest
+		Image:       "redroid/redroid:15.0.0_64only-latest",
 		DataRoot:    "/var/lib/unborn/redroid-data",
 		BaseADBPort: 5555,
 		Width:       1080,
@@ -102,17 +103,15 @@ func getUsedHostPorts() map[int]bool {
 	if err != nil {
 		return used
 	}
-	lines := strings.Split(string(out), "\n")
-	for _, line := range lines {
-		parts := strings.Split(line, ",")
-		for _, part := range parts {
+	for _, line := range strings.Split(string(out), "\n") {
+		// look for host ports like 0.0.0.0:5555->5555/tcp
+		for _, part := range strings.Split(line, ",") {
 			part = strings.TrimSpace(part)
-			if idx := strings.Index(part, "->"); idx != -1 {
-				hostPart := part[:idx]
-				if colonIdx := strings.LastIndex(hostPart, ":"); colonIdx != -1 {
-					portStr := hostPart[colonIdx+1:]
-					if p, err := strconv.Atoi(portStr); err == nil {
-						used[p] = true
+			if i := strings.Index(part, "->"); i > 0 {
+				hostSide := part[:i]
+				if j := strings.LastIndex(hostSide, ":"); j >= 0 {
+					if n, err := strconv.Atoi(hostSide[j+1:]); err == nil {
+						used[n] = true
 					}
 				}
 			}
@@ -122,11 +121,18 @@ func getUsedHostPorts() map[int]bool {
 }
 
 func (m *RedroidManager) allocatePort() (int, error) {
-	usedHostPorts := getUsedHostPorts()
-	for p := m.cfg.BaseADBPort; p < m.cfg.BaseADBPort+m.max*2; p++ {
-		if _, inMem := m.ports[p]; !inMem && !usedHostPorts[p] && isHostPortAvailable(p) {
-			return p, nil
+	dockerUsed := getUsedHostPorts()
+	for p := m.cfg.BaseADBPort; p < m.cfg.BaseADBPort+m.max*4; p++ {
+		if _, used := m.ports[p]; used {
+			continue
 		}
+		if dockerUsed[p] {
+			continue
+		}
+		if !isHostPortAvailable(p) {
+			continue
+		}
+		return p, nil
 	}
 	return 0, fmt.Errorf("no free ADB ports")
 }
@@ -159,6 +165,10 @@ func (m *RedroidManager) Start(ctx context.Context, opts StartOpts) (*Body, erro
 		"-v", dataDir + ":/data",
 		"-p", fmt.Sprintf("%d:5555", port),
 		"--restart", "unless-stopped",
+	}
+	// binderfs on modern kernels (Antigravity)
+	if _, err := os.Stat("/dev/binderfs"); err == nil {
+		args = append(args, "-v", "/dev/binderfs:/dev/binderfs")
 	}
 	if m.cfg.MemoryLimit != "" {
 		args = append(args, "--memory", m.cfg.MemoryLimit)
@@ -195,7 +205,6 @@ func (m *RedroidManager) Start(ctx context.Context, opts StartOpts) (*Body, erro
 	cmd := exec.CommandContext(ctx, "docker", args...)
 	out, err := cmd.CombinedOutput()
 	if err != nil {
-		_ = exec.Command("docker", "rm", "-f", name).Run()
 		return nil, fmt.Errorf("docker run failed: %w (%s)", err, strings.TrimSpace(string(out)))
 	}
 	containerID := strings.TrimSpace(string(out))

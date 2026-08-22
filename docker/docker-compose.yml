@@ -41,8 +41,9 @@ services:
       MAX_INSTANCES: "10"
       BEHAVIOR_LOOP: "true"
       BEHAVIOR_INTERVAL_SEC: "60"
-      # Redroid ADB is published on the host; reach it from this container:
       ADB_HOST: host.docker.internal
+      # Android for real bodies — 15 default; use 16.0.0_64only-latest for newest
+      REDROID_IMAGE: redroid/redroid:15.0.0_64only-latest
     extra_hosts:
       - "host.docker.internal:host-gateway"
     ports:
