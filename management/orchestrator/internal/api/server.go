@@ -40,6 +40,10 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("GET /v1/instances/{id}/health", s.handleInstanceHealth)
 	s.mux.HandleFunc("GET /v1/instances/{id}/logs", s.handleInstanceLogs)
 	s.mux.HandleFunc("GET /v1/instances/{id}/screenshot", s.handleScreenshot)
+	s.mux.HandleFunc("POST /v1/instances/{id}/input/tap", s.handleInputTap)
+	s.mux.HandleFunc("POST /v1/instances/{id}/input/swipe", s.handleInputSwipe)
+	s.mux.HandleFunc("POST /v1/instances/{id}/input/key", s.handleInputKey)
+	s.mux.HandleFunc("POST /v1/instances/{id}/input/text", s.handleInputText)
 	s.mux.HandleFunc("GET /v1/personas", s.handleListPersonas)
 	s.mux.HandleFunc("POST /v1/personas", s.handleCreatePersona)
 	s.mux.HandleFunc("GET /v1/personas/{id}", s.handleGetPersona)
@@ -82,7 +86,6 @@ func (s *Server) handleListInstances(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, s.orch.ListInstances())
 }
 
-// resolveSimulated: body.simulated wins; ?real=true forces real; default simulated=true for safety.
 func resolveSimulated(reqSimulated bool, qReal, qSim string) bool {
 	if qReal == "true" {
 		return false
@@ -90,7 +93,6 @@ func resolveSimulated(reqSimulated bool, qReal, qSim string) bool {
 	if qSim == "true" {
 		return true
 	}
-	// explicit false in JSON means real intent
 	if !reqSimulated {
 		return false
 	}
