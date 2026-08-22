@@ -44,6 +44,7 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("POST /v1/instances/{id}/input/swipe", s.handleInputSwipe)
 	s.mux.HandleFunc("POST /v1/instances/{id}/input/key", s.handleInputKey)
 	s.mux.HandleFunc("POST /v1/instances/{id}/input/text", s.handleInputText)
+	s.mux.HandleFunc("POST /v1/instances/{id}/install-apk", s.handleInstallAPK)
 	s.mux.HandleFunc("GET /v1/personas", s.handleListPersonas)
 	s.mux.HandleFunc("POST /v1/personas", s.handleCreatePersona)
 	s.mux.HandleFunc("GET /v1/personas/{id}", s.handleGetPersona)
@@ -66,7 +67,7 @@ func (s *Server) routes() {
 func (s *Server) ListenAndServe(addr string) error {
 	s.http = &http.Server{
 		Addr: addr, Handler: s.mux,
-		ReadTimeout: 15 * time.Second, WriteTimeout: 60 * time.Second, IdleTimeout: 60 * time.Second,
+		ReadTimeout: 15 * time.Second, WriteTimeout: 120 * time.Second, IdleTimeout: 60 * time.Second,
 	}
 	return s.http.ListenAndServe()
 }
