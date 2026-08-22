@@ -41,7 +41,7 @@ th{color:var(--muted);font-size:.7rem;text-transform:uppercase}
 .phone img{width:100%;display:block;aspect-ratio:9/16;object-fit:contain}
 .phone .ph{padding:2rem .5rem;text-align:center;color:var(--muted);font-size:.8rem;aspect-ratio:9/16;display:flex;align-items:center;justify-content:center}
 .phone .ctrls{display:flex;gap:.3rem;padding:.45rem;flex-wrap:wrap;border-top:1px solid var(--border)}
-.phone .ctrls button{flex:1;min-width:3rem}
+.phone .ctrls button{flex:1;min-width:2.8rem}
 .hint{font-size:.75rem;color:var(--muted);padding:0 .6rem .5rem}
 </style>
 </head>
@@ -63,7 +63,7 @@ th{color:var(--muted);font-size:.7rem;text-transform:uppercase}
 <div class="stat"><div class="label">License</div><div class="value" id="s-l">—</div></div>
 </div>
 <section id="panel-screens" class="panel active">
-<div class="note"><strong>Click</strong> = tap · <strong>drag</strong> = swipe · Home / Back / Recents. Coords map to 1080×1920.</div>
+<div class="note"><strong>Click</strong> = tap · <strong>drag</strong> = swipe · <strong>Stop</strong> ends the Redroid container (<code>docker rm -f</code>). Data volume kept unless you Wipe.</div>
 <div class="actions"><button type="button" class="btn" id="ref-sc">Refresh</button><span class="msg" id="msg-sc"></span></div>
 <div class="screens" id="grid"></div>
 </section>
@@ -113,10 +113,24 @@ function render(){
   const st=i.state==='running'?'running':'stopped';
   return '<tr><td><code>'+i.id.slice(0,8)+'</code></td><td><span class="pill '+st+'">'+(i.state||'')+
    '</span></td><td>'+(i.simulated?'yes':'no')+'</td><td>'+(i.adb_port||'—')+
-   '</td><td><button type="button" class="btn danger" data-x="'+i.id+'">Stop</button></td></tr>';
+   '</td><td class="row-actions"><button type="button" class="btn danger" data-x="'+i.id+'">Stop</button>'+
+   (i.simulated?'':'<button type="button" class="btn secondary" data-w="'+i.id+'">Wipe</button>')+'</td></tr>';
  }).join(''):'<tr><td colspan="5" class="empty">No bodies</td></tr>';
- $('tb').querySelectorAll('[data-x]').forEach(b=>b.onclick=async()=>{await fetch('/v1/instances/'+b.dataset.x+'/stop',{method:'POST'});load()});
+ $('tb').querySelectorAll('[data-x]').forEach(b=>b.onclick=()=>stopBody(b.dataset.x));
+ $('tb').querySelectorAll('[data-w]').forEach(b=>b.onclick=()=>wipeBody(b.dataset.w));
  $('tpb').innerHTML=S.playbooks.length?S.playbooks.map(p=>'<tr><td>'+p.name+'</td><td>'+p.kind+'</td></tr>').join(''):'<tr><td colspan="2" class="empty">None</td></tr>';
+}
+async function stopBody(id){
+ $('msg-sc').textContent='Stopping…';
+ const r=await fetch('/v1/instances/'+id+'/stop',{method:'POST'});
+ $('msg-sc').textContent=r.ok?'Stopped':'Stop failed: '+await r.text();
+ load();
+}
+async function wipeBody(id){
+ if(!confirm('Wipe data dir? Container must already be stopped.')) return;
+ const r=await fetch('/v1/instances/'+id+'/wipe',{method:'POST'});
+ alert(r.ok?'Wiped':'Wipe failed: '+await r.text());
+ load();
 }
 function deviceXY(img,cx,cy){const r=img.getBoundingClientRect();
  return {x:Math.max(0,Math.min(DW-1,Math.round((cx-r.left)/r.width*DW))),
@@ -133,6 +147,7 @@ function wirePhone(el,id){
   if(Math.abs(up.x-down.x)+Math.abs(up.y-down.y)<20) postInput(id,'tap',{x:up.x,y:up.y});
   else postInput(id,'swipe',{x1:down.x,y1:down.y,x2:up.x,y2:up.y,ms:280}); down=null;};
  el.querySelectorAll('[data-key]').forEach(b=>b.onclick=()=>postInput(id,'key',{keycode:+b.dataset.key}));
+ el.querySelectorAll('[data-stop]').forEach(b=>b.onclick=()=>stopBody(id));
 }
 function refreshScreens(){
  const grid=$('grid');
@@ -144,9 +159,11 @@ function refreshScreens(){
   '<div class="stage"><img src="/v1/instances/'+i.id+'/screenshot?t='+Date.now()+'" draggable="false" onerror="this.style.opacity=.3"/></div>'+
   '<div class="ctrls"><button type="button" class="btn secondary" data-key="4">Back</button>'+
   '<button type="button" class="btn secondary" data-key="3">Home</button>'+
-  '<button type="button" class="btn secondary" data-key="187">Recents</button></div>'+
-  '<div class="hint">Click = tap · drag = swipe</div></div>';});
- sim.forEach(i=>{html+='<div class="phone"><div class="meta">sim</div><div class="ph">API only — use Real</div></div>';});
+  '<button type="button" class="btn secondary" data-key="187">Recents</button>'+
+  '<button type="button" class="btn danger" data-stop="1">Stop</button></div>'+
+  '<div class="hint">Click = tap · drag = swipe · Stop = end container</div></div>';});
+ sim.forEach(i=>{html+='<div class="phone" data-id="'+i.id+'"><div class="meta">sim · <code>'+i.id.slice(0,6)+'</code></div><div class="ph">API only</div>'+
+  '<div class="ctrls"><button type="button" class="btn danger" data-stop="1">Stop</button></div></div>';});
  grid.innerHTML=html;
  grid.querySelectorAll('.phone[data-id]').forEach(el=>wirePhone(el,el.dataset.id));
  $('msg-sc').textContent=real.length?real.length+' interactive':'sim only';
